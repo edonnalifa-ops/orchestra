@@ -85,7 +85,6 @@
   .sol-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
   .sol-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .sol-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.3em;color:var(--muted);text-transform:uppercase;}
-  .sol-btns{display:flex;gap:6px;}
   .mode-btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;padding:5px 9px;
     border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--muted);
     cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
@@ -144,6 +143,13 @@
   .bg-btn:hover{border-color:var(--accent-orch);color:var(--accent-orch);}
   .bg-btn.bg-on{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(212,175,55,0.06);}
   .bg-btn:disabled{opacity:0.5;cursor:wait;}
+  .top-controls{width:100%;display:flex;flex-direction:column;gap:8px;margin:4px 0 2px;}
+  .mode-row{display:flex;gap:8px;}
+  .mode-row .mode-btn{flex:1;padding:8px 0;font-size:11px;letter-spacing:0.15em;
+    border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);
+    font-family:'Space Mono',monospace;cursor:pointer;transition:all 0.3s;
+    -webkit-tap-highlight-color:transparent;}
+  .mode-row .mode-btn:hover{border-color:var(--accent-mix);color:var(--accent-mix);}
   .bg-status{margin-top:6px;font-size:10px;color:var(--muted);text-align:center;
     font-family:'Noto Sans JP',sans-serif;min-height:14px;}
 
@@ -155,8 +161,15 @@
   <div class="title-block">
     <h1>Binaural &middot; Solfeggio &middot; Orchestra &middot; v19</h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
-  <button class="bg-btn" id="bgModeBtn">&#128251; バックグラウンド再生</button>
-  <div class="bg-status" id="bgStatus"></div>
+  <div class="top-controls">
+    <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
+    <button class="bg-btn" id="bgModeBtn">&#128251; バックグラウンド再生</button>
+    <div class="mode-row">
+      <button id="allBandsBtn" class="mode-btn">&#9711; ALL</button>
+      <button id="orchBtn" class="mode-btn">&#9834; ORCH</button>
+    </div>
+    <div class="bg-status" id="bgStatus"></div>
+  </div>
 
   </div>
   <canvas id="waveCanvas"></canvas>
@@ -177,10 +190,6 @@
   <div class="sol-section">
     <div class="sol-header">
       <div class="sol-label">Solfeggio &middot; Theme</div>
-      <div class="sol-btns">
-        <button id="allBandsBtn" class="mode-btn">&#9711; ALL</button>
-        <button id="orchBtn" class="mode-btn">&#9834; ORCH</button>
-      </div>
     </div>
     <div class="sol-grid" id="solGrid"></div>
   </div>
@@ -195,13 +204,12 @@
       <span class="tl-en" id="tlEn">&mdash;</span>
     </div>
   </div>
-  <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="35" step="1"><span id="volVal">35%</span></div>
-  <div class="vol-row shore-row"><label>&#27874;&#25171;&#12385;&#38555;</label><input type="range" id="shoreVol" min="0" max="100" value="40" step="1"><span id="shoreVal">40%</span></div>
-  <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="35" step="1"><span id="musicVal">35%</span></div>
-  <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="45" step="1"><span id="orchVal">45%</span></div>
-  <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
+  <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
+  <div class="vol-row shore-row"><label>&#27874;&#25171;&#12385;&#38555;</label><input type="range" id="shoreVol" min="0" max="100" value="10" step="1"><span id="shoreVal">10%</span></div>
+  <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
+  <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v21.1 web &middot; 3x3 grid &middot; BG top&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v21.2 web &middot; preset defaults &middot; top control deck&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1130,7 +1138,7 @@ function renderCompositionOffline(onProgress) {
     var reverb = buildReverb(octx);
     var orchGainVal = 0.45;
     var orchVolEl = document.getElementById('orchVol');
-    if (orchVolEl) orchGainVal = (parseInt(orchVolEl.value, 10) || 45) / 100;
+    if (orchVolEl) orchGainVal = (parseInt(orchVolEl.value, 10) || 100) / 100;
     var orchOut = octx.createGain();
     orchOut.gain.value = orchGainVal * 1.6;
     reverb.output.connect(orchOut);
@@ -1346,7 +1354,7 @@ function toggleBgMode() {
     // (some in-app browsers block blob URLs for media elements).
     return new Promise(function(resolve, reject) {
       var volEl = document.getElementById('volume');
-      var vol = volEl ? Math.min(1, (parseInt(volEl.value, 10) || 35) / 100 * 1.4) : 0.5;
+      var vol = volEl ? Math.min(1, (parseInt(volEl.value, 10) || 100) / 100) : 0.5;
       
       function tryDataUri() {
         if (status) status.textContent = '\u5909\u63db\u4e2d...'; // 変換中...
