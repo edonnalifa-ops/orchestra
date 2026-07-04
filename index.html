@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a0a0f' stroke='%23a5d6a7' stroke-width='2'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='16' fill='%23a5d6a7'%3E%E2%99%AA%3C/text%3E%3C/svg%3E">
 <meta name="theme-color" content="#0a0a0f">
 <meta name="apple-mobile-web-app-title" content="Orchestra">
 <meta name="format-detection" content="telephone=no">
@@ -146,6 +147,9 @@
   .bg-btn:hover{border-color:var(--accent-orch);color:var(--accent-orch);}
   .bg-btn.bg-on{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(212,175,55,0.06);}
   .bg-btn:disabled{opacity:0.5;cursor:wait;}
+  .ver-badge{display:inline-block;margin-left:6px;padding:2px 8px;border:1px solid var(--accent-orch);
+    border-radius:10px;font-size:10px;color:var(--accent-orch);vertical-align:middle;
+    font-family:'Space Mono',monospace;letter-spacing:0.1em;}
   .top-controls{width:100%;display:flex;flex-direction:column;gap:8px;margin:4px 0 2px;}
   .mode-row{display:flex;gap:8px;}
   .mode-row .mode-btn{flex:1;padding:8px 0;font-size:11px;letter-spacing:0.15em;
@@ -162,7 +166,7 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra &middot; v19</h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v23</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
     <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
@@ -212,7 +216,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22.3 web &middot; chip点灯を全楽器常時=BG一致&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23 web &middot; 全レイヤーBG &middot; timeline同期 &middot; 自動ORCH+ALL&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -342,6 +346,7 @@ var activeChords=[], musicOscs=[], chordIndex=0;
 
 // Orchestra
 var orchestraMode=false;
+var autoModesApplied=false;
 var orchestraOscs=[], orchestraTimers=[];
 var dynamicsEnvs=[];
 var compCycleTimer=null, compStartT=0;
@@ -443,13 +448,20 @@ function formatTime(s){
 }
 
 function updateSectionIndicator(){
-  if(!playing||!orchestraMode||!audioCtx){
+  // Timeline source: BG playback position when BG is active (audioCtx is
+  // suspended then), otherwise live orchestra position.
+  var elapsed=null;
+  if(bgActive&&bgAudioEl&&isFinite(bgAudioEl.currentTime)){
+    elapsed=bgAudioEl.currentTime%COMP_CYCLE_LEN;
+  }else if(playing&&orchestraMode&&audioCtx){
+    elapsed=(audioCtx.currentTime-compStartT)%COMP_CYCLE_LEN;
+  }
+  if(elapsed===null){
     if(timeline.classList.contains('show'))timeline.classList.remove('show');
     return;
   }
   buildTimelineDOM();
   if(!timeline.classList.contains('show'))timeline.classList.add('show');
-  var elapsed=(audioCtx.currentTime-compStartT)%COMP_CYCLE_LEN;
   if(elapsed<0)elapsed+=COMP_CYCLE_LEN;
   var cumDur=0, activeIdx=0, inSec=0;
   for(var i=0;i<COMPOSITION.length;i++){
@@ -545,6 +557,11 @@ function activateSol(sf,chipEl){
   });
   var bgBtn=document.getElementById('bgModeBtn');
   if(bgBtn)bgBtn.addEventListener('click',toggleBgMode);
+  [leftSlider,rightSlider,orchSlider,musicSlider,shoreSlider].forEach(function(s){
+    if(s)s.addEventListener('input',checkBgDirty);
+  });
+  allBandsBtn.addEventListener('click',checkBgDirty);
+  orchBtn.addEventListener('click',checkBgDirty);
   document.addEventListener('visibilitychange',function(){
     if(!document.hidden&&audioCtx&&audioCtx.state==='suspended'&&playing&&!bgActive){
       audioCtx.resume().catch(function(){});
@@ -1097,6 +1114,8 @@ var bgAudioEl = null;      // hidden <audio> element
 var bgBlobUrl = null;      // object URL of rendered WAV
 var bgActive = false;      // BG mode state
 var bgRendering = false;   // render in progress
+var bgSnapshot = null;     // settings snapshot at last render (dirty detection)
+var mediaProbeOk = false;  // remember successful probe — skip next time
 
 // Tiny silent WAV data URI — played instantly on button tap to secure
 // iOS media playback permission within the user gesture.
@@ -1273,6 +1292,44 @@ function renderCompositionOffline(onProgress) {
       } catch (e) {}
     }
     
+    // ---- Ambient pads layer (音楽) — deterministic offline version of the
+    //      live startMusic (which uses setTimeout and can't run offline).
+    //      128s / 16s = exactly 8 chord segments = CHORDS cycle × 2. Loop-clean.
+    try {
+      var musicLvl = (musicSlider ? parseInt(musicSlider.value, 10) : 100) / 100 * 0.55;
+      if (musicLvl > 0.001) {
+        var mOut = octx.createGain(); mOut.gain.value = musicLvl; mOut.connect(mg);
+        var mRev = buildReverb(octx); mRev.output.connect(mOut);
+        var segDur = 16;
+        for (var ci = 0; ci * segDur < renderSec; ci++) {
+          var chord = CHORDS[ci % CHORDS.length];
+          var t0 = ci * segDur;
+          var t1 = Math.min(t0 + segDur + 4, renderSec); // 4s overlap between chords
+          chord.forEach(function(f) {
+            var o = octx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+            var g = octx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.linearRampToValueAtTime(0.11, t0 + 4);
+            g.gain.setValueAtTime(0.11, Math.max(t0 + 4, t1 - 4));
+            g.gain.linearRampToValueAtTime(0.0001, t1);
+            o.connect(g); g.connect(mRev.input);
+            o.start(t0); o.stop(t1 + 0.1);
+          });
+        }
+      }
+    } catch (e) {}
+    
+    // ---- Shore foam layer (波打ち際) — static foam bed at slider level.
+    //      buildFoam is pure audio nodes, safe in OfflineAudioContext.
+    try {
+      var shoreLvl = (shoreSlider ? parseInt(shoreSlider.value, 10) : 10) / 100 * 0.7;
+      if (shoreLvl > 0.001) {
+        var shOut = octx.createGain(); shOut.gain.value = shoreLvl; shOut.connect(mg);
+        var shPink = makePinkBuffer(octx, 11);
+        buildFoam(octx, shPink, shOut);
+      }
+    } catch (e) {}
+    
     if (onProgress) onProgress('rendering');
     var renderDone = function(buffer) {
       if (onProgress) onProgress('encoding');
@@ -1407,18 +1464,40 @@ function probeMediaSupport(el) {
   });
 }
 
+// Settings snapshot for BG dirty-detection: if any of these change while
+// BG is playing, the baked audio no longer matches the UI.
+function bgCurrentSnapshot(){
+  return [orchestraMode?1:0, allBandsMode?1:0,
+          leftSlider.value, rightSlider.value,
+          orchSlider.value, musicSlider.value, shoreSlider.value].join('|');
+}
+function checkBgDirty(){
+  if(!bgActive||!bgSnapshot)return;
+  var btn=document.getElementById('bgModeBtn');
+  var status=document.getElementById('bgStatus');
+  if(bgCurrentSnapshot()!==bgSnapshot){
+    if(btn)btn.innerHTML='&#128260; \u66f4\u65b0\u3057\u3066\u518d\u751f';
+    if(status)status.textContent='\u8a2d\u5b9a\u304c\u5909\u308f\u308a\u307e\u3057\u305f \u2014 \u30bf\u30c3\u30d7\u3067\u518d\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0';
+  }
+}
+
 // Toggle background playback mode
 function toggleBgMode() {
   var btn = document.getElementById('bgModeBtn');
   var status = document.getElementById('bgStatus');
   
   if (bgActive) {
+    // If settings changed since the last render, this tap means
+    // "re-render with new settings": turn off, then immediately restart.
+    var wantsRerender = bgSnapshot && bgCurrentSnapshot() !== bgSnapshot;
     // Turn OFF: stop bg audio, revoke URL, resume live context if playing
     if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} bgAudioEl.src = ''; }
     if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
     bgActive = false;
+    bgSnapshot = null;
     if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#128251; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u518d\u751f'; }
     if (status) status.textContent = '';
+    if (wantsRerender) { toggleBgMode(); return; }
     if (audioCtx && playing && audioCtx.state === 'suspended') {
       audioCtx.resume().catch(function() {});
     }
@@ -1443,7 +1522,9 @@ function toggleBgMode() {
   
   // 2. PROBE FIRST — if this viewer blocks data:/blob: media (CSP), fail fast
   //    withOUT suspending live audio or wasting a 10s render.
-  probeMediaSupport(bgAudioEl).then(function() {
+  var probeP = mediaProbeOk ? Promise.resolve() : probeMediaSupport(bgAudioEl);
+  probeP.then(function() {
+    mediaProbeOk = true;
     // Probe OK — this environment can play media. Proceed with full render.
     bgAudioEl.play().catch(function() {}); // silent wav: keep gesture chain warm
     if (status) status.textContent = '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...';
@@ -1513,7 +1594,8 @@ function toggleBgMode() {
       btn.classList.add('bg-on');
       btn.innerHTML = '&#9209; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u505c\u6b62';
     }
-    if (status) status.textContent = '\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u518d\u751f\u4e2d \u2014 \u753b\u9762\u30ed\u30c3\u30af\u3057\u3066\u3082\u7d99\u7d9a\u3057\u307e\u3059';
+    bgSnapshot = bgCurrentSnapshot();
+    if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 128s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
   }).catch(function(err) {
     if (err && err.handled) return; // probe-failure already messaged
     bgRendering = false;
@@ -1635,12 +1717,30 @@ orchBtn.addEventListener('click',function(){
 
 playBtn.addEventListener('click',function(){
   if(!playing){
+    if(bgActive){toggleBgMode();} // BG and live are exclusive
     audioCtx=new(window.AudioContext||window.webkitAudioContext)();
     // Explicit resume within the user gesture — iOS Safari can create the
     // context in 'suspended' state (no statechange fires in that case).
     if(audioCtx.state==='suspended'){audioCtx.resume().catch(function(){});}
     // Promote audio session so the mute switch doesn't silence Web Audio
     ensureAudioSession();
+    // First START: auto-enable ORCH + ALL so the full preferred soundscape
+    // (orchestra + all solfeggio bands + binaural) plays with one tap.
+    if(!autoModesApplied){
+      autoModesApplied=true;
+      if(!allBandsMode){
+        allBandsMode=true;
+        allBandsBtn.classList.add('all-active');
+        allBandsBtn.innerHTML='&#9711; ALL \u25cf';
+        document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.add('active');});
+      }
+      if(!orchestraMode){
+        orchestraMode=true;
+        orchBtn.classList.add('orch-active');
+        orchBtn.innerHTML='&#9834; ORCH \u25cf';
+        document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.add('orch-on');});
+      }
+    }
     audioCtx.onstatechange=function(){
       if(audioCtx&&audioCtx.state==='suspended'&&playing){
         audioCtx.resume().catch(function(){});
@@ -1710,6 +1810,7 @@ playBtn.addEventListener('click',function(){
     audioCtx.close(); audioCtx=null; masterGain=null;
     releaseAudioSession();
     playing=false;
+    if(bgActive){toggleBgMode();} // stopping live also stops BG
     playBtn.textContent='\u25B6  START';
     playBtn.classList.remove('playing');
   }
