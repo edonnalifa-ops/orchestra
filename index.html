@@ -212,7 +212,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v21.3 web &middot; cache-bust &middot; preset defaults&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22 web &middot; crossfade loop &middot; layered BG render&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1087,6 +1087,59 @@ var bgRendering = false;   // render in progress
 // iOS media playback permission within the user gesture.
 var SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 
+// Crossfade-loop WAV encoder: takes a buffer rendered to (loopSec + xfade)
+// and produces a loopSec-long WAV where the extra tail [loopSec, loopSec+xfade]
+// is mixed back over the head [0, xfade] with an equal-power crossfade.
+// The result loops perfectly: playing end→start has no discontinuity because
+// the seam is already blended into the audio.
+function audioBufferToWavBlobLooped(buffer, sr, loopSec, xfadeSec) {
+  var numCh = buffer.numberOfChannels;
+  var loopLen = Math.floor(loopSec * sr);
+  var xfadeLen = Math.floor(xfadeSec * sr);
+  
+  // Build looped channel data
+  var outChans = [];
+  for (var c = 0; c < numCh; c++) {
+    var srcData = buffer.getChannelData(c);
+    var out = new Float32Array(loopLen);
+    // Copy the main body
+    for (var i = 0; i < loopLen; i++) out[i] = srcData[i];
+    // Fold the tail back over the head with equal-power crossfade
+    for (var j = 0; j < xfadeLen; j++) {
+      var tailIdx = loopLen + j;        // sample in the extra tail
+      if (tailIdx >= srcData.length) break;
+      var t = j / xfadeLen;             // 0..1 across the fade
+      // Equal-power curves
+      var headGain = Math.cos(t * Math.PI / 2); // head fades out 1→0
+      var tailGain = Math.sin(t * Math.PI / 2); // tail fades in 0→1
+      out[j] = out[j] * headGain + srcData[tailIdx] * tailGain;
+    }
+    outChans.push(out);
+  }
+  
+  // Encode outChans as 16-bit PCM WAV
+  var bytesPerSample = 2;
+  var blockAlign = numCh * bytesPerSample;
+  var dataSize = loopLen * blockAlign;
+  var ab = new ArrayBuffer(44 + dataSize);
+  var dv = new DataView(ab);
+  var p = 0;
+  function ws(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+  function u32(v) { dv.setUint32(p, v, true); p += 4; }
+  function u16(v) { dv.setUint16(p, v, true); p += 2; }
+  ws('RIFF'); u32(36 + dataSize); ws('WAVE');
+  ws('fmt '); u32(16); u16(1); u16(numCh); u32(sr); u32(sr * blockAlign); u16(blockAlign); u16(16);
+  ws('data'); u32(dataSize);
+  for (var s = 0; s < loopLen; s++) {
+    for (var ch = 0; ch < numCh; ch++) {
+      var v = Math.max(-1, Math.min(1, outChans[ch][s]));
+      dv.setInt16(p, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      p += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
 // Encode an AudioBuffer as 16-bit PCM WAV blob
 function audioBufferToWavBlob(buffer) {
   var numCh = buffer.numberOfChannels;
@@ -1118,18 +1171,27 @@ function audioBufferToWavBlob(buffer) {
 }
 
 // Render one full 128s composition cycle offline. Returns a Promise<Blob>.
+// Render the full composition offline for background playback.
+// KEY IMPROVEMENTS:
+// - Renders orchestra + (optionally) binaural + Solfeggio bands, matching
+//   whatever the live app has active, so BG audio == what you hear live.
+// - Crossfade loop: renders an extra TAIL beyond the 128s cycle, then the
+//   WAV encoder folds that tail back over the head. Sustained tones and
+//   reverb decay blend seamlessly instead of clicking at the loop point.
 function renderCompositionOffline(onProgress) {
   return new Promise(function(resolve, reject) {
     var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OfflineCtx) { reject(new Error('OfflineAudioContext unsupported')); return; }
     var sr = 44100;
-    var totalLen = Math.ceil(COMP_CYCLE_LEN * sr);
+    var XFADE = 4.0; // seconds of crossfade at the loop seam
+    var renderSec = COMP_CYCLE_LEN + XFADE; // render extra tail to fold back
+    var totalLen = Math.ceil(renderSec * sr);
     var octx;
     try {
       octx = new OfflineCtx(2, totalLen, sr);
     } catch (e) { reject(e); return; }
     
-    // Master chain (same limiter settings as live)
+    // Master chain (same limiter as live)
     var mg = octx.createGain();
     mg.gain.value = 0.9;
     var comp = octx.createDynamicsCompressor();
@@ -1137,11 +1199,10 @@ function renderCompositionOffline(onProgress) {
     comp.attack.value = 0.015; comp.release.value = 0.25;
     mg.connect(comp); comp.connect(octx.destination);
     
-    // Orchestra graph — local instances (independent from live graph)
+    // ---- Orchestra layer ----
     var reverb = buildReverb(octx);
-    var orchGainVal = 0.45;
     var orchVolEl = document.getElementById('orchVol');
-    if (orchVolEl) orchGainVal = (parseInt(orchVolEl.value, 10) || 100) / 100;
+    var orchGainVal = orchVolEl ? (parseInt(orchVolEl.value, 10) || 100) / 100 : 1.0;
     var orchOut = octx.createGain();
     orchOut.gain.value = orchGainVal * 1.6;
     reverb.output.connect(orchOut);
@@ -1152,17 +1213,42 @@ function renderCompositionOffline(onProgress) {
     var vcs = INSTRUMENTS.map(function(instr) {
       return createVoice(octx, instr, filt, 0.02);
     });
-    
-    // Schedule exactly one cycle starting near t=0
+    // Schedule 2 cycles so the tail (128..132s) keeps playing during crossfade
     scheduleCycleFor(octx, 0.05, vcs, filt);
+    scheduleCycleFor(octx, 0.05 + COMP_CYCLE_LEN, vcs, filt);
+    
+    // ---- Binaural layer (always included — matches live L/R tones) ----
+    try {
+      var lf = +document.getElementById('leftFreq').value;
+      var rf = +document.getElementById('rightFreq').value;
+      var binGain = octx.createGain(); binGain.gain.value = 0.22; binGain.connect(mg);
+      // Left tone
+      var lo = octx.createOscillator(); lo.type = 'sine'; lo.frequency.value = lf;
+      var lp = octx.createStereoPanner(); lp.pan.value = -1;
+      lo.connect(lp); lp.connect(binGain); lo.start(0); lo.stop(renderSec);
+      // Right tone
+      var ro = octx.createOscillator(); ro.type = 'sine'; ro.frequency.value = rf;
+      var rp = octx.createStereoPanner(); rp.pan.value = 1;
+      ro.connect(rp); rp.connect(binGain); ro.start(0); ro.stop(renderSec);
+    } catch (e) {}
+    
+    // ---- Solfeggio bands layer (only if ALL mode is active) ----
+    if (allBandsMode && typeof SOL_DATA !== 'undefined') {
+      try {
+        var solGain = octx.createGain(); solGain.gain.value = 0.10; solGain.connect(mg);
+        SOL_DATA.forEach(function(sf) {
+          var o = octx.createOscillator(); o.type = 'sine'; o.frequency.value = sf.hz;
+          var g = octx.createGain(); g.gain.value = 1.0 / SOL_DATA.length;
+          o.connect(g); g.connect(solGain); o.start(0); o.stop(renderSec);
+        });
+      } catch (e) {}
+    }
     
     if (onProgress) onProgress('rendering');
-    // Old WebKit: startRendering() returns undefined and uses oncomplete
-    // callback instead of a Promise. Support both styles.
     var renderDone = function(buffer) {
       if (onProgress) onProgress('encoding');
       try {
-        var blob = audioBufferToWavBlob(buffer);
+        var blob = audioBufferToWavBlobLooped(buffer, sr, COMP_CYCLE_LEN, XFADE);
         resolve(blob);
       } catch (encErr) {
         reject(new Error('encode: ' + (encErr && encErr.message ? encErr.message : encErr)));
@@ -1177,7 +1263,7 @@ function renderCompositionOffline(onProgress) {
       return;
     }
     if (p && typeof p.then === 'function') {
-      octx.oncomplete = null; // Promise path wins; avoid double-resolution
+      octx.oncomplete = null;
       p.then(renderDone).catch(function(rErr) {
         reject(new Error('render: ' + (rErr && rErr.message ? rErr.message : rErr)));
       });
