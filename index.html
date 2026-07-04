@@ -91,21 +91,18 @@
     cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
   .mode-btn.all-active{border-color:var(--accent-mix);color:var(--accent-mix);background:rgba(156,127,201,0.09);}
   .mode-btn.orch-active{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(165,214,167,0.09);}
-  .sol-grid{display:flex;flex-wrap:wrap;gap:7px;}
+  .sol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .sol-chip{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--border);
     border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:pointer;
     transition:border-color 0.3s,background 0.3s,opacity 0.3s;
-    user-select:none;-webkit-tap-highlight-color:transparent;min-width:54px;}
+    user-select:none;-webkit-tap-highlight-color:transparent;width:100%;}
   .sol-chip:active{background:rgba(255,255,255,0.05);}
   .sol-chip.active{border-color:var(--accent-mix);background:rgba(156,127,201,0.10);}
   .sol-chip .s-hz{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);line-height:1;}
   .sol-chip.active .s-hz{color:var(--accent-mix);}
-  .sol-chip .s-theme{font-family:'Noto Sans JP',sans-serif;font-size:10px;color:var(--accent-orch);
-    line-height:1.2;opacity:0;transition:opacity 0.2s;}
   .sol-chip .s-instr{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);
     letter-spacing:0.04em;line-height:1.1;display:none;}
   .sol-chip.orch-on .s-instr{display:block;}
-  .sol-chip.orch-on .s-theme{opacity:1;}
   /* Dynamic states during orchestra playback */
   .sol-chip.lead{border-color:var(--accent-orch);background:rgba(165,214,167,0.18);
     box-shadow:0 0 12px rgba(165,214,167,0.2);}
@@ -158,6 +155,9 @@
   <div class="title-block">
     <h1>Binaural &middot; Solfeggio &middot; Orchestra &middot; v19</h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
+  <button class="bg-btn" id="bgModeBtn">&#128251; バックグラウンド再生</button>
+  <div class="bg-status" id="bgStatus"></div>
+
   </div>
   <canvas id="waveCanvas"></canvas>
   <div class="channels">
@@ -200,9 +200,8 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="35" step="1"><span id="musicVal">35%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="45" step="1"><span id="orchVal">45%</span></div>
   <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
-  <button class="bg-btn" id="bgModeBtn">&#128241; BG&#12514;&#12540;&#12489;</button>
-  <div class="bg-status" id="bgStatus"></div>
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v21 web &middot; iPhone BG&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v21.1 web &middot; 3x3 grid &middot; BG top&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -513,9 +512,9 @@ function activateSol(sf,chipEl){
     chip.className='sol-chip';
     chip.title=sf.themeJP+' '+sf.themeEN+' &mdash; '+sf.instr+' ['+sf.cat+']';
     var hz=document.createElement('div');hz.className='s-hz';hz.textContent=sf.hz+'Hz';
-    var theme=document.createElement('div');theme.className='s-theme';theme.textContent=sf.themeJP;
+
     var instr=document.createElement('div');instr.className='s-instr';instr.textContent=sf.instr;
-    chip.appendChild(hz);chip.appendChild(theme);chip.appendChild(instr);
+    chip.appendChild(hz);chip.appendChild(instr);
     chip.addEventListener('click',function(){activateSol(sf,chip);});
     grid.appendChild(chip);
   });
@@ -1292,7 +1291,7 @@ function toggleBgMode() {
     if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} bgAudioEl.src = ''; }
     if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
     bgActive = false;
-    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#128241; BG&#12514;&#12540;&#12489;'; }
+    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#128251; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u518d\u751f'; }
     if (status) status.textContent = '';
     if (audioCtx && playing && audioCtx.state === 'suspended') {
       audioCtx.resume().catch(function() {});
@@ -1386,7 +1385,7 @@ function toggleBgMode() {
     if (btn) {
       btn.disabled = false;
       btn.classList.add('bg-on');
-      btn.innerHTML = '&#128241; BG&#20572;&#27490;';
+      btn.innerHTML = '&#9209; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u505c\u6b62';
     }
     if (status) status.textContent = '\u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u518d\u751f\u4e2d \u2014 \u753b\u9762\u30ed\u30c3\u30af\u3057\u3066\u3082\u7d99\u7d9a\u3057\u307e\u3059';
   }).catch(function(err) {
