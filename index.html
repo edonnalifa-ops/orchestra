@@ -91,8 +91,8 @@
   .mode-btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;padding:5px 9px;
     border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--muted);
     cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
-  .mode-btn.all-active{border-color:var(--accent-mix);color:var(--accent-mix);background:rgba(156,127,201,0.09);}
-  .mode-btn.orch-active{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(165,214,167,0.09);}
+  .mode-row .mode-btn.all-active{border-color:var(--accent-mix);color:#fff;background:rgba(156,127,201,0.28);box-shadow:0 0 12px rgba(156,127,201,0.5),inset 0 0 8px rgba(156,127,201,0.2);font-weight:600;}
+  .mode-row .mode-btn.orch-active{border-color:var(--accent-orch);color:#fff;background:rgba(165,214,167,0.28);box-shadow:0 0 12px rgba(165,214,167,0.5),inset 0 0 8px rgba(165,214,167,0.2);font-weight:600;}
   .sol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .sol-chip{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--border);
     border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:pointer;
@@ -212,7 +212,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22.1 web &middot; BG matches live orch+all+binaural&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22.2 web &middot; orch主役balance &middot; 点灯強化&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -678,6 +678,7 @@ function stopAllBands(){
 allBandsBtn.addEventListener('click',function(){
   allBandsMode=!allBandsMode;
   allBandsBtn.classList.toggle('all-active',allBandsMode);
+  allBandsBtn.innerHTML=allBandsMode?'&#9711; ALL \u25cf':'&#9711; ALL';
   document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.toggle('active',allBandsMode);});
   if(!playing)return;
   if(allBandsMode){
@@ -1204,7 +1205,7 @@ function renderCompositionOffline(onProgress) {
     var orchVolEl = document.getElementById('orchVol');
     var orchGainVal = orchVolEl ? (parseInt(orchVolEl.value, 10) || 100) / 100 : 1.0;
     var orchOut = octx.createGain();
-    orchOut.gain.value = orchGainVal * 1.6;
+    orchOut.gain.value = orchGainVal * 2.0;
     reverb.output.connect(orchOut);
     orchOut.connect(mg);
     var filt = octx.createBiquadFilter();
@@ -1226,7 +1227,7 @@ function renderCompositionOffline(onProgress) {
       var rf = +document.getElementById('rightFreq').value;
       var binPink = makePinkBuffer(octx, 13);
       var binOut = octx.createGain();
-      binOut.gain.value = 0.5; // match live master balance for binaural
+      binOut.gain.value = 0.28; // background layer — keep under orchestra
       binOut.connect(mg);
       var lch = buildChannel(octx, binPink, lf, -1, 0);
       var rch = buildChannel(octx, binPink, rf, 1, 3.5);
@@ -1239,7 +1240,7 @@ function renderCompositionOffline(onProgress) {
     if (allBandsMode && typeof SOL_DATA !== 'undefined') {
       try {
         var allOut = octx.createGain();
-        allOut.gain.value = 0.52; // match live buildAllBands master gain
+        allOut.gain.value = 0.22; // ambient wash — well under orchestra
         allOut.connect(mg);
         var allPink = makePinkBuffer(octx, 13);
         var bandGain = 0.55 / SOL_DATA.length;
@@ -1600,6 +1601,7 @@ function stopOrchestra() {
 orchBtn.addEventListener('click',function(){
   orchestraMode=!orchestraMode;
   orchBtn.classList.toggle('orch-active',orchestraMode);
+  orchBtn.innerHTML=orchestraMode?'&#9834; ORCH \u25cf':'&#9834; ORCH';
   document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.toggle('orch-on',orchestraMode);});
   if(!playing)return;
   if(orchestraMode){
