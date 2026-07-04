@@ -166,7 +166,7 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v23.1</span></h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v23.2</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
     <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
@@ -216,7 +216,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23.1 web &middot; 2周ループ焼込 &middot; 継目ブレス&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23.2 web &middot; 波形BG対応 &middot; セクション連動振幅&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -416,27 +416,44 @@ function drawWave(){
   requestAnimationFrame(drawWave);
   var dpr=devicePixelRatio, w=canvas.width/dpr, h=canvas.height/dpr;
   cCtx.save(); cCtx.scale(dpr,dpr); cCtx.clearRect(0,0,w,h);
+  // Active when live playing OR background audio is running
+  var active=playing||bgActive;
+  // Amplitude responds to the current section (busier sections = bigger waves),
+  // so the visual "breathes" with the music even in BG mode.
+  var amp=0.30;
+  if(active){
+    var el=null;
+    if(bgActive&&bgAudioEl&&isFinite(bgAudioEl.currentTime))el=bgAudioEl.currentTime%COMP_CYCLE_LEN;
+    else if(playing&&audioCtx)el=(audioCtx.currentTime-compStartT)%COMP_CYCLE_LEN;
+    if(el!==null&&el>=0){
+      var cum=0,secIdx=0;
+      for(var si=0;si<COMPOSITION.length;si++){if(el<cum+COMPOSITION[si].dur){secIdx=si;break;}cum+=COMPOSITION[si].dur;}
+      var parts=COMPOSITION[secIdx].parts;
+      var activeCount=0;parts.forEach(function(p){if(p&&p.d>0.25)activeCount++;});
+      amp=0.18+activeCount/9*0.30; // 0.18 (sparse) .. 0.48 (tutti)
+    }
+  }
   cCtx.beginPath();
-  cCtx.strokeStyle=playing?'rgba(79,195,247,0.65)':'rgba(79,195,247,0.18)';
+  cCtx.strokeStyle=active?'rgba(79,195,247,0.65)':'rgba(79,195,247,0.18)';
   cCtx.lineWidth=1.5;
-  for(var x=0;x<w;x++){
-    var s1=Math.sin(wt*0.83+x/w*Math.PI*1.7)*0.5+0.5;
-    var s2=Math.sin(wt*1.07+x/w*Math.PI*2.3+1.1)*0.5+0.5;
-    var y=h/2+noiseL[(ni+x)%noiseL.length]*h*0.30*(s1*0.6+s2*0.4);
-    x===0?cCtx.moveTo(x,y):cCtx.lineTo(x,y);
+  for(var xa=0;xa<w;xa++){
+    var s1=Math.sin(wt*0.83+xa/w*Math.PI*1.7)*0.5+0.5;
+    var s2=Math.sin(wt*1.07+xa/w*Math.PI*2.3+1.1)*0.5+0.5;
+    var y=h/2+noiseL[(ni+xa)%noiseL.length]*h*amp*(s1*0.6+s2*0.4);
+    xa===0?cCtx.moveTo(xa,y):cCtx.lineTo(xa,y);
   }
   cCtx.stroke();
   cCtx.beginPath();
-  cCtx.strokeStyle=playing?'rgba(240,98,146,0.65)':'rgba(240,98,146,0.18)';
+  cCtx.strokeStyle=active?'rgba(240,98,146,0.65)':'rgba(240,98,146,0.18)';
   cCtx.lineWidth=1.5;
-  for(var x2=0;x2<w;x2++){
-    var s3=Math.sin(wt*0.77+x2/w*Math.PI*1.9+0.7)*0.5+0.5;
-    var s4=Math.sin(wt*0.99+x2/w*Math.PI*2.1+2.2)*0.5+0.5;
-    var y2=h/2+noiseR[(ni+x2+80)%noiseR.length]*h*0.30*(s3*0.6+s4*0.4);
-    x2===0?cCtx.moveTo(x2,y2):cCtx.lineTo(x2,y2);
+  for(var xb=0;xb<w;xb++){
+    var s3=Math.sin(wt*0.77+xb/w*Math.PI*1.9+0.7)*0.5+0.5;
+    var s4=Math.sin(wt*0.99+xb/w*Math.PI*2.1+2.2)*0.5+0.5;
+    var y2b=h/2+noiseR[(ni+xb+80)%noiseR.length]*h*amp*(s3*0.6+s4*0.4);
+    xb===0?cCtx.moveTo(xb,y2b):cCtx.lineTo(xb,y2b);
   }
   cCtx.stroke();
-  if(playing){wt+=0.018; if(++ni>=400)ni=0;}
+  if(active){wt+=0.018; if(++ni>=400)ni=0;}
   cCtx.restore();
   updateSectionIndicator();
 }
@@ -1615,6 +1632,10 @@ function toggleBgMode() {
       btn.innerHTML = '&#9209; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u505c\u6b62';
     }
     bgSnapshot = bgCurrentSnapshot();
+    // NOTE: We intentionally do NOT route bgAudioEl through Web Audio
+    // (createMediaElementSource), because on iOS that can break lock-screen
+    // background playback — the hard-won feature. Instead the waveform
+    // animates in a time-driven "playing" style while BG is active (below).
     if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 256s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
   }).catch(function(err) {
     if (err && err.handled) return; // probe-failure already messaged
