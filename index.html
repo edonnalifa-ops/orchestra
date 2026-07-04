@@ -212,7 +212,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22 web &middot; crossfade loop &middot; layered BG render&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v22.1 web &middot; BG matches live orch+all+binaural&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1217,29 +1217,43 @@ function renderCompositionOffline(onProgress) {
     scheduleCycleFor(octx, 0.05, vcs, filt);
     scheduleCycleFor(octx, 0.05 + COMP_CYCLE_LEN, vcs, filt);
     
-    // ---- Binaural layer (always included — matches live L/R tones) ----
+    // ---- Binaural layer — reproduce the LIVE channel structure exactly:
+    //      pink noise → bandpass(freq) → lowshelf → gain, panned L/R.
+    //      Using the same builder path guarantees BG sounds like live, and
+    //      the level matches (was previously a too-loud raw sine).
     try {
       var lf = +document.getElementById('leftFreq').value;
       var rf = +document.getElementById('rightFreq').value;
-      var binGain = octx.createGain(); binGain.gain.value = 0.22; binGain.connect(mg);
-      // Left tone
-      var lo = octx.createOscillator(); lo.type = 'sine'; lo.frequency.value = lf;
-      var lp = octx.createStereoPanner(); lp.pan.value = -1;
-      lo.connect(lp); lp.connect(binGain); lo.start(0); lo.stop(renderSec);
-      // Right tone
-      var ro = octx.createOscillator(); ro.type = 'sine'; ro.frequency.value = rf;
-      var rp = octx.createStereoPanner(); rp.pan.value = 1;
-      ro.connect(rp); rp.connect(binGain); ro.start(0); ro.stop(renderSec);
+      var binPink = makePinkBuffer(octx, 13);
+      var binOut = octx.createGain();
+      binOut.gain.value = 0.5; // match live master balance for binaural
+      binOut.connect(mg);
+      var lch = buildChannel(octx, binPink, lf, -1, 0);
+      var rch = buildChannel(octx, binPink, rf, 1, 3.5);
+      lch.panner.connect(binOut);
+      rch.panner.connect(binOut);
     } catch (e) {}
     
     // ---- Solfeggio bands layer (only if ALL mode is active) ----
+    // Reproduce live buildAllBands character (pink-noise bandpass per band).
     if (allBandsMode && typeof SOL_DATA !== 'undefined') {
       try {
-        var solGain = octx.createGain(); solGain.gain.value = 0.10; solGain.connect(mg);
-        SOL_DATA.forEach(function(sf) {
-          var o = octx.createOscillator(); o.type = 'sine'; o.frequency.value = sf.hz;
-          var g = octx.createGain(); g.gain.value = 1.0 / SOL_DATA.length;
-          o.connect(g); g.connect(solGain); o.start(0); o.stop(renderSec);
+        var allOut = octx.createGain();
+        allOut.gain.value = 0.52; // match live buildAllBands master gain
+        allOut.connect(mg);
+        var allPink = makePinkBuffer(octx, 13);
+        var bandGain = 0.55 / SOL_DATA.length;
+        SOL_DATA.forEach(function(sf, bi) {
+          var s = octx.createBufferSource();
+          s.buffer = allPink; s.loop = true;
+          s.loopStart = (bi * 1.3) % 10; s.loopEnd = allPink.duration;
+          var bp = octx.createBiquadFilter();
+          bp.type = 'bandpass'; bp.frequency.value = sf.hz; bp.Q.value = 4.0;
+          var bp2 = octx.createBiquadFilter();
+          bp2.type = 'bandpass'; bp2.frequency.value = sf.hz; bp2.Q.value = 4.0;
+          var g = octx.createGain(); g.gain.value = bandGain;
+          s.connect(bp); bp.connect(bp2); bp2.connect(g); g.connect(allOut);
+          s.start(0); s.stop(renderSec);
         });
       } catch (e) {}
     }
