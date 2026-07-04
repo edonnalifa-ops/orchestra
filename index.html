@@ -216,7 +216,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23 web &middot; 全レイヤーBG &middot; timeline同期 &middot; 自動ORCH+ALL&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23.1 web &middot; 2周ループ焼込 &middot; 継目ブレス&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1151,6 +1151,20 @@ function audioBufferToWavBlobLooped(buffer, sr, loopSec, xfadeSec) {
     outChans.push(out);
   }
   
+  // Loop-seam breath: gently dip the level into and out of the seam so any
+  // tiny gap the <audio> element introduces on wrap lands in near-quiet.
+  // 2.5s each side, floor 0.45 (~ -7dB) — reads musically as a wave receding.
+  var breathLen = Math.floor(2.5 * sr);
+  var dipFloor = 0.45;
+  for (var bc = 0; bc < numCh; bc++) {
+    var oc = outChans[bc];
+    for (var bi = 0; bi < breathLen && bi < loopLen; bi++) {
+      var bg = dipFloor + (1 - dipFloor) * (bi / breathLen);
+      oc[bi] *= bg;                    // head: rise 0.45 → 1
+      oc[loopLen - 1 - bi] *= bg;      // tail: fall 1 → 0.45 (mirrored)
+    }
+  }
+  
   // Encode outChans as 16-bit PCM WAV
   var bytesPerSample = 2;
   var blockAlign = numCh * bytesPerSample;
@@ -1217,8 +1231,12 @@ function renderCompositionOffline(onProgress) {
     var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OfflineCtx) { reject(new Error('OfflineAudioContext unsupported')); return; }
     var sr = 44100;
-    var XFADE = 4.0; // seconds of crossfade at the loop seam
-    var renderSec = COMP_CYCLE_LEN + XFADE; // render extra tail to fold back
+    var XFADE = 4.0;  // seconds of crossfade at the loop seam
+    var LOOP_CYCLES = 2; // bake 2 full cycles: interior 128s boundary is a TRUE
+                         // continuation (reverb flows across), so the only
+                         // processed seam occurs once per 256s.
+    var loopSec = COMP_CYCLE_LEN * LOOP_CYCLES;
+    var renderSec = loopSec + XFADE; // extra tail (start of cycle 3) to fold back
     var totalLen = Math.ceil(renderSec * sr);
     var octx;
     try {
@@ -1247,9 +1265,11 @@ function renderCompositionOffline(onProgress) {
     var vcs = INSTRUMENTS.map(function(instr) {
       return createVoice(octx, instr, filt, 0.02);
     });
-    // Schedule 2 cycles so the tail (128..132s) keeps playing during crossfade
-    scheduleCycleFor(octx, 0.05, vcs, filt);
-    scheduleCycleFor(octx, 0.05 + COMP_CYCLE_LEN, vcs, filt);
+    // Schedule LOOP_CYCLES+1 cycles: the final one provides the natural
+    // tail material that gets crossfaded back over the head.
+    for (var ck = 0; ck <= LOOP_CYCLES; ck++) {
+      scheduleCycleFor(octx, 0.05 + ck * COMP_CYCLE_LEN, vcs, filt);
+    }
     
     // ---- Binaural layer — reproduce the LIVE channel structure exactly:
     //      pink noise → bandpass(freq) → lowshelf → gain, panned L/R.
@@ -1334,7 +1354,7 @@ function renderCompositionOffline(onProgress) {
     var renderDone = function(buffer) {
       if (onProgress) onProgress('encoding');
       try {
-        var blob = audioBufferToWavBlobLooped(buffer, sr, COMP_CYCLE_LEN, XFADE);
+        var blob = audioBufferToWavBlobLooped(buffer, sr, loopSec, XFADE);
         resolve(blob);
       } catch (encErr) {
         reject(new Error('encode: ' + (encErr && encErr.message ? encErr.message : encErr)));
@@ -1595,7 +1615,7 @@ function toggleBgMode() {
       btn.innerHTML = '&#9209; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u505c\u6b62';
     }
     bgSnapshot = bgCurrentSnapshot();
-    if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 128s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
+    if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 256s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
   }).catch(function(err) {
     if (err && err.handled) return; // probe-failure already messaged
     bgRendering = false;
