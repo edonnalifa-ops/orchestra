@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a0a0f' stroke='%23a5d6a7' stroke-width='2'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='16' fill='%23a5d6a7'%3E%E2%99%AA%3C/text%3E%3C/svg%3E">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-title" content="Orchestra">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Binaural + Solfeggio + 9-instrument generative orchestra — 128s endless loop, 120 BPM, Am→C→A major">
+<title>Orchestra v20 Final</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital@0;1&family=Noto+Sans+JP:wght@300;400&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0a0a0f;--surface:#12121a;--surface-2:#16162020;--border:#1e1e2e;
+    --accent-l:#4fc3f7;--accent-r:#f06292;--accent-mix:#9c7fc9;
+    --accent-shore:#4db6ac;--accent-music:#c8a870;--accent-orch:#a5d6a7;
+    --text:#e0e0f0;--muted:#555570;--muted-2:#3a3a4a;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;font-weight:300;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:24px 24px calc(70px + env(safe-area-inset-bottom));overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;}
+  body::before{content:'';position:fixed;top:30%;left:20%;width:400px;height:400px;
+    background:radial-gradient(circle,rgba(79,195,247,0.04) 0%,transparent 70%);pointer-events:none;}
+  body::after{content:'';position:fixed;top:40%;right:15%;width:360px;height:360px;
+    background:radial-gradient(circle,rgba(240,98,146,0.04) 0%,transparent 70%);pointer-events:none;}
+  .container{width:100%;max-width:520px;display:flex;flex-direction:column;gap:18px;}
+
+  .title-block{text-align:center;margin-bottom:6px;}
+  .title-block h1{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.3em;
+    color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+  .beat-display{font-family:'Space Mono',monospace;font-size:36px;color:var(--accent-mix);letter-spacing:-1px;}
+  .beat-display span{font-size:14px;color:var(--muted);margin-left:4px;letter-spacing:0.1em;}
+
+  canvas{width:100%;height:80px;border-radius:4px;background:var(--surface);
+    border:1px solid var(--border);display:block;}
+
+  .channels{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .channel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;}
+  .channel.left{border-top:2px solid var(--accent-l);}
+  .channel.right{border-top:2px solid var(--accent-r);}
+  .ch-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.25em;margin-bottom:10px;}
+  .channel.left .ch-label{color:var(--accent-l);}
+  .channel.right .ch-label{color:var(--accent-r);}
+  .freq-value{font-family:'Space Mono',monospace;font-size:28px;line-height:1;margin-bottom:12px;}
+  .freq-value .unit{font-size:12px;color:var(--muted);margin-left:2px;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;
+    border-radius:2px;outline:none;cursor:pointer;background:var(--border);}
+  .channel.left input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+    border-radius:50%;background:var(--accent-l);box-shadow:0 0 8px rgba(79,195,247,0.5);}
+  .channel.right input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+    border-radius:50%;background:var(--accent-r);box-shadow:0 0 8px rgba(240,98,146,0.5);}
+  .range-labels{display:flex;justify-content:space-between;font-family:'Space Mono',monospace;
+    font-size:9px;color:var(--muted);margin-top:4px;}
+
+  /* Full 8-section timeline (visible during ORCH) */
+  .timeline{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent-orch);
+    border-radius:8px;padding:12px 14px;display:none;flex-direction:column;gap:8px;}
+  .timeline.show{display:flex;}
+  .tl-header{display:flex;justify-content:space-between;align-items:baseline;}
+  .tl-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.3em;color:var(--muted);text-transform:uppercase;}
+  .tl-time{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);}
+  .tl-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;}
+  .tl-seg{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:3px;
+    padding:5px 2px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;
+    overflow:hidden;transition:border-color 0.3s,background 0.3s;min-height:40px;}
+  .tl-seg .tl-num{font-family:'Space Mono',monospace;font-size:7px;color:var(--muted);line-height:1;}
+  .tl-seg .tl-name{font-family:'Noto Sans JP',sans-serif;font-size:10px;color:var(--text);line-height:1.1;
+    text-align:center;}
+  .tl-fill{position:absolute;bottom:0;left:0;height:2px;background:var(--accent-orch);width:0%;
+    transition:width 0.15s linear;}
+  .tl-seg.done{opacity:0.4;}
+  .tl-seg.done .tl-fill{width:100%;background:var(--muted-2);}
+  .tl-seg.active{border-color:var(--accent-orch);background:rgba(165,214,167,0.10);
+    box-shadow:0 0 10px rgba(165,214,167,0.15);}
+  .tl-seg.active .tl-name{color:var(--accent-orch);}
+  .tl-seg.pending{opacity:0.55;}
+  .tl-current{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--border);
+    padding-top:6px;}
+  .tl-now{font-family:'Noto Sans JP',sans-serif;font-size:13px;color:var(--accent-orch);}
+  .tl-en{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+
+  /* Sol section */
+  .sol-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+  .sol-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .sol-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.3em;color:var(--muted);text-transform:uppercase;}
+  .mode-btn{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:0.12em;padding:5px 9px;
+    border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--muted);
+    cursor:pointer;transition:all 0.2s;-webkit-tap-highlight-color:transparent;}
+  .mode-row .mode-btn.all-active{border-color:var(--accent-mix);color:#fff;background:rgba(156,127,201,0.28);box-shadow:0 0 12px rgba(156,127,201,0.5),inset 0 0 8px rgba(156,127,201,0.2);font-weight:600;}
+  .mode-row .mode-btn.orch-active{border-color:var(--accent-orch);color:#fff;background:rgba(165,214,167,0.28);box-shadow:0 0 12px rgba(165,214,167,0.5),inset 0 0 8px rgba(165,214,167,0.2);font-weight:600;}
+  .sol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .sol-chip{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--border);
+    border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:pointer;
+    transition:border-color 0.3s,background 0.3s,opacity 0.3s;
+    user-select:none;-webkit-tap-highlight-color:transparent;width:100%;}
+  .sol-chip:active{background:rgba(255,255,255,0.05);}
+  .sol-chip.active{border-color:var(--accent-mix);background:rgba(156,127,201,0.10);}
+  .sol-chip .s-hz{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);line-height:1;}
+  .sol-chip.active .s-hz{color:var(--accent-mix);}
+  .sol-chip .s-instr{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);
+    letter-spacing:0.04em;line-height:1.1;display:none;}
+  .sol-chip.orch-on .s-instr{display:block;}
+  /* Dynamic states during orchestra playback */
+  .sol-chip.lead{border-color:var(--accent-orch);background:rgba(165,214,167,0.18);
+    box-shadow:0 0 12px rgba(165,214,167,0.2);}
+  .sol-chip.support{border-color:var(--accent-orch);opacity:0.85;}
+  .sol-chip.silent{opacity:0.35;}
+
+  /* Volume rows */
+  .vol-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+    padding:14px 16px;display:flex;align-items:center;gap:14px;}
+  .vol-row label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.2em;color:var(--muted);white-space:nowrap;}
+  .vol-row input[type=range]{flex:1;height:3px;background:var(--border);}
+  .vol-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;}
+  #volVal,#shoreVal,#musicVal,#orchVal{font-family:'Space Mono',monospace;font-size:11px;width:32px;text-align:right;}
+  #volVal{color:var(--text);}
+  .shore-row{border-top:2px solid var(--accent-shore);}
+  .shore-row label,#shoreVal{color:var(--accent-shore);}
+  .shore-row input[type=range]::-webkit-slider-thumb{background:var(--accent-shore);}
+  .music-row{border-top:2px solid var(--accent-music);}
+  .music-row label,#musicVal{color:var(--accent-music);}
+  .music-row input[type=range]::-webkit-slider-thumb{background:var(--accent-music);}
+  .orch-row{border-top:2px solid var(--accent-orch);}
+  .orch-row label,#orchVal{color:var(--accent-orch);}
+  .orch-row input[type=range]::-webkit-slider-thumb{background:var(--accent-orch);}
+
+  /* Play button */
+  .play-btn{width:100%;padding:16px;border:1px solid var(--border);border-radius:8px;
+    background:var(--surface);color:var(--text);font-family:'Space Mono',monospace;
+    font-size:12px;letter-spacing:0.3em;text-transform:uppercase;cursor:pointer;
+    transition:all 0.2s;position:relative;overflow:hidden;}
+  .play-btn:hover{border-color:var(--accent-mix);color:var(--accent-mix);background:rgba(156,127,201,0.05);}
+  .play-btn.playing{border-color:var(--accent-mix);background:rgba(156,127,201,0.08);color:var(--accent-mix);}
+  .play-btn.playing::before{content:'';position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(156,127,201,0.07),transparent);
+    animation:sweep 2s linear infinite;}
+  @keyframes sweep{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+  .bg-btn{width:100%;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;
+    background:var(--bg);color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;
+    letter-spacing:0.08em;cursor:pointer;transition:all 0.3s;-webkit-tap-highlight-color:transparent;}
+  .bg-btn:hover{border-color:var(--accent-orch);color:var(--accent-orch);}
+  .bg-btn.bg-on{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(212,175,55,0.06);}
+  .bg-btn:disabled{opacity:0.5;cursor:wait;}
+  .ver-badge{display:inline-block;margin-left:6px;padding:2px 8px;border:1px solid var(--accent-orch);
+    border-radius:10px;font-size:10px;color:var(--accent-orch);vertical-align:middle;
+    font-family:'Space Mono',monospace;letter-spacing:0.1em;}
+  .top-controls{width:100%;display:flex;flex-direction:column;gap:8px;margin:4px 0 2px;}
+  .mode-row{display:flex;gap:8px;}
+  .mode-row .mode-btn{flex:1;padding:8px 0;font-size:11px;letter-spacing:0.15em;
+    border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--muted);
+    font-family:'Space Mono',monospace;cursor:pointer;transition:all 0.3s;
+    -webkit-tap-highlight-color:transparent;}
+  .mode-row .mode-btn:hover{border-color:var(--accent-mix);color:var(--accent-mix);}
+  .bg-status{margin-top:6px;font-size:10px;color:var(--muted);text-align:center;
+    font-family:'Noto Sans JP',sans-serif;min-height:14px;}
+
+  .note{text-align:center;font-size:11px;color:var(--muted);line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title-block">
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v23</span></h1>
+    <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
+  <div class="top-controls">
+    <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
+    <button class="bg-btn" id="bgModeBtn">&#128251; バックグラウンド再生</button>
+    <div class="mode-row">
+      <button id="allBandsBtn" class="mode-btn">&#9711; ALL</button>
+      <button id="orchBtn" class="mode-btn">&#9834; ORCH</button>
+    </div>
+    <div class="bg-status" id="bgStatus"></div>
+  </div>
+
+  </div>
+  <canvas id="waveCanvas"></canvas>
+  <div class="channels">
+    <div class="channel left">
+      <div class="ch-label">L &middot; LEFT</div>
+      <div class="freq-value" id="leftVal">100<span class="unit">Hz</span></div>
+      <input type="range" id="leftFreq" min="40" max="1000" value="100" step="1">
+      <div class="range-labels"><span>40</span><span>1000</span></div>
+    </div>
+    <div class="channel right">
+      <div class="ch-label">R &middot; RIGHT</div>
+      <div class="freq-value" id="rightVal">110<span class="unit">Hz</span></div>
+      <input type="range" id="rightFreq" min="40" max="1000" value="110" step="1">
+      <div class="range-labels"><span>40</span><span>1000</span></div>
+    </div>
+  </div>
+  <div class="sol-section">
+    <div class="sol-header">
+      <div class="sol-label">Solfeggio &middot; Theme</div>
+    </div>
+    <div class="sol-grid" id="solGrid"></div>
+  </div>
+  <div class="timeline" id="timeline">
+    <div class="tl-header">
+      <span class="tl-label">Timeline &middot; &#26354;&#27083;&#25104;</span>
+      <span class="tl-time" id="tlTime">0:00 / 8:00</span>
+    </div>
+    <div class="tl-grid" id="tlGrid"></div>
+    <div class="tl-current">
+      <span class="tl-now" id="tlNow">&mdash;</span>
+      <span class="tl-en" id="tlEn">&mdash;</span>
+    </div>
+  </div>
+  <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
+  <div class="vol-row shore-row"><label>&#27874;&#25171;&#12385;&#38555;</label><input type="range" id="shoreVol" min="0" max="100" value="10" step="1"><span id="shoreVal">10%</span></div>
+  <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
+  <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
+
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23.1 web &middot; 2周ループ焼込 &middot; 継目ブレス&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+</div>
+<script>
+(function(){
+"use strict";
+
+// ============================================================================
+// CONSTANTS & DATA
+// ============================================================================
+
+// Solfeggio bands with themes and assigned instrument categories
+var SOL_DATA=[
+  {hz:174,instr:"Marimba",   cat:"&#25171;&#27005;&#22120;",        themeJP:"&#22823;&#22320;",themeEN:"Earth opens"},
+  {hz:285,instr:"Harp",      cat:"&#24382;&#27005;&#22120;",        themeJP:"&#27700;&#27969;",themeEN:"Water flows"},
+  {hz:396,instr:"Flute",     cat:"&#31649;&#27005;&#22120;",        themeJP:"&#39080;",       themeEN:"Wind rises"},
+  {hz:417,instr:"Hang Drum", cat:"&#27665;&#26063;&#27005;&#22120;",themeJP:"&#28814;",       themeEN:"Fire arrives"},
+  {hz:528,instr:"Piano",     cat:"&#37749;&#30436;&#27005;&#22120;",themeJP:"&#24859;",       themeEN:"Heart blooms"},
+  {hz:639,instr:"Theremin",  cat:"&#38651;&#23376;&#27005;&#22120;",themeJP:"&#32257;",       themeEN:"Bridge spans"},
+  {hz:741,instr:"Shakuhachi",cat:"&#21644;&#27005;&#22120;",        themeJP:"&#22768;",       themeEN:"Voice rises"},
+  {hz:852,instr:"Glass Harm",cat:"&#12464;&#12521;&#12473;&#12495;&#12540;&#12514;&#12491;&#12459;",themeJP:"&#38745;&#23517;",themeEN:"Silence holds"},
+  {hz:963,instr:"Armonica",  cat:"&#12450;&#12523;&#12514;&#12491;&#12459;",themeJP:"&#22825;",themeEN:"Crown dissolves"}
+];
+
+// 9 instruments with synthesis parameters
+// nm=name, cat=category, wv=wave type, atk/dcy/sus/rel=ADSR, ft/ff/fq=filter,
+// vr/vd/vdl=vibrato (rate/depth/delay), fm=FM synthesis (or null), g=gain, pn=pan
+var INSTRUMENTS=[
+  {nm:'Marimba',  cat:'&#25171;&#27005;&#22120;',  wv:'marimba',  atk:0.003,dcy:0.7, sus:0.05,rel:0.25,ft:'lowpass', ff:1500,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.17,pn:-0.35},
+  {nm:'Harp',     cat:'&#24382;&#27005;&#22120;',  wv:'harp',     atk:0.003,dcy:3.5, sus:0.00,rel:1.5, ft:'lowpass', ff:4000,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.17,pn:-0.10},
+  {nm:'Flute',    cat:'&#31649;&#27005;&#22120;',  wv:'sine',     atk:0.05, dcy:0.04,sus:0.70,rel:0.35,ft:'bandpass',ff:1200,fq:2,vr:6.8,vd:12,vdl:0.12, fm:null,                g:0.18,pn:0.20},
+  {nm:'Hangdrum', cat:'&#27665;&#26063;',          wv:'hangdrum', atk:0.008,dcy:2.6, sus:0.18,rel:1.5, ft:'bandpass',ff:1100,fq:2,vr:0,  vd:0, vdl:0,    fm:{r:2.2,d:18,dc:1.6}, g:0.17,pn:0.05},
+  {nm:'Piano',    cat:'&#37749;&#30436;',          wv:'piano',    atk:0.006,dcy:1.8, sus:0.00,rel:0.5, ft:'lowpass', ff:5000,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.19,pn:-0.05},
+  {nm:'Theremin', cat:'&#38651;&#23376;',          wv:'sine',     atk:0.18, dcy:0.05,sus:0.95,rel:0.4, ft:'lowpass', ff:6000,fq:1,vr:4.2,vd:18,vdl:0.05, fm:null,                g:0.14,pn:-0.55},
+  {nm:'Shakuhachi',cat:'&#21644;&#27005;',         wv:'shakuhachi',atk:0.08,dcy:0.05,sus:0.78,rel:0.45,ft:'bandpass',ff:1100,fq:2,vr:5.5,vd:8, vdl:0.15, fm:null,                g:0.17,pn:0.40},
+  {nm:'GlassHarm',cat:'&#12464;&#12521;&#12473;',  wv:'glass',    atk:0.35, dcy:0.05,sus:0.95,rel:1.5, ft:'highpass',ff:400, fq:1,vr:2.0,vd:4, vdl:0.20, fm:null,                g:0.16,pn:0.25},
+  {nm:'Armonica', cat:'&#12450;&#12523;&#12514;',  wv:'armonica', atk:0.28, dcy:0.05,sus:1.00,rel:1.0, ft:'bandpass',ff:1400,fq:2,vr:3.0,vd:5, vdl:0.00, fm:null,                g:0.13,pn:0.00}
+];
+
+// =============================================================================
+// PHRASE LIBRARY
+// All phrases are exactly 15 seconds (5 bars × 4 beats × 0.75s at 80 BPM).
+// This means each phrase loops exactly 2x in a 30s section — NO gaps,
+// NO partial loops, NO truncation. Clean and predictable.
+// =============================================================================
+var PHRASES={
+Marimba:{
+intro_am:[[110.0,0.5],[130.81,0.5],[164.81,0.5],[220.0,0.5],[87.31,0.5],[110.0,0.5],[130.81,0.5],[174.61,0.5],[130.81,0.5],[164.81,0.5],[196.0,0.5],[261.63,0.5],[98.0,0.5],[123.47,0.5],[146.83,0.5],[196.0,0.5],[110.0,0.5],[130.81,0.5],[164.81,0.5],[220.0,0.5],[87.31,0.5],[110.0,0.5],[130.81,0.5],[174.61,0.5],[146.83,0.5],[174.61,0.5],[220.0,0.5],[293.66,0.5],[82.41,0.5],[207.65,0.5],[246.94,0.5],[164.81,0.5]],
+drive_c:[[130.81,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[87.31,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[174.61,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[110.0,0.25],[164.81,0.25],[130.81,0.25],[164.81,0.25],[220.0,0.25],[164.81,0.25],[130.81,0.25],[164.81,0.25],[98.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[196.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[130.81,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[87.31,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[174.61,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[82.41,0.25],[123.47,0.25],[196.0,0.25],[123.47,0.25],[164.81,0.25],[123.47,0.25],[196.0,0.25],[123.47,0.25],[98.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[196.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25]],
+},
+Harp:{
+cascade_c:[[261.63,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[523.25,0.25],[659.26,0.25],[783.99,0.25],[1046.5,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[349.23,0.25],[440.0,0.25],[523.25,0.25],[698.46,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[392.0,0.25],[440.0,0.25],[523.25,0.25],[659.26,0.25],[880.0,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[349.23,0.25],[392.0,0.25],[493.88,0.25],[587.33,0.25],[783.99,0.25],[261.63,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[523.25,0.25],[659.26,0.25],[783.99,0.25],[1046.5,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[349.23,0.25],[440.0,0.25],[523.25,0.25],[698.46,0.25],[164.81,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[659.26,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[349.23,0.25],[392.0,0.25],[493.88,0.25],[587.33,0.25],[783.99,0.25]],
+},
+Flute:{
+pure_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+ornament_c:[[493.88,0.125],[523.25,0.375],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[783.99,0.125],[880.0,0.375],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,0.75],[493.88,0.25],[523.25,1.0]],
+},
+Hangdrum:{
+calls_c:[[523.25,0.25],[0,0.25],[659.26,0.25],[783.99,0.25],[0,0.25],[523.25,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[880.0,0.25],[698.46,0.25],[0,0.25],[523.25,0.25],[440.0,0.25],[523.25,0.25],[440.0,0.25],[0,0.25],[523.25,0.25],[659.26,0.25],[0,0.25],[440.0,0.25],[392.0,0.25],[329.63,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[587.33,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[659.26,0.25],[783.99,0.25],[0,0.25],[523.25,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[880.0,0.25],[698.46,0.25],[0,0.25],[523.25,0.25],[440.0,0.25],[523.25,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[659.26,0.25],[493.88,0.25],[392.0,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[587.33,0.25],[493.88,0.25],[392.0,0.25]],
+},
+Piano:{
+leap_c:[[130.81,0.5],[392.0,0.5],[523.25,0.5],[659.26,0.5],[87.31,0.5],[261.63,0.5],[349.23,0.5],[440.0,0.5],[110.0,0.5],[329.63,0.5],[440.0,0.5],[523.25,0.5],[98.0,0.5],[293.66,0.5],[392.0,0.5],[493.88,0.5],[130.81,0.5],[392.0,0.5],[523.25,0.5],[659.26,0.5],[87.31,0.5],[261.63,0.5],[349.23,0.5],[440.0,0.5],[82.41,0.5],[246.94,0.5],[329.63,0.5],[392.0,0.5],[98.0,0.5],[293.66,0.5],[392.0,0.5],[493.88,0.5]],
+roll_c:[[130.81,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[130.81,0.25],[196.0,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[349.23,0.25],[261.63,0.25],[220.0,0.25],[174.61,0.25],[261.63,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[440.0,0.25],[329.63,0.25],[261.63,0.25],[220.0,0.25],[329.63,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[392.0,0.25],[293.66,0.25],[246.94,0.25],[196.0,0.25],[293.66,0.25],[130.81,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[130.81,0.25],[196.0,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[349.23,0.25],[261.63,0.25],[220.0,0.25],[174.61,0.25],[261.63,0.25],[164.81,0.25],[196.0,0.25],[246.94,0.25],[329.63,0.25],[246.94,0.25],[196.0,0.25],[164.81,0.25],[246.94,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[392.0,0.25],[293.66,0.25],[246.94,0.25],[196.0,0.25],[293.66,0.25]],
+},
+Theremin:{
+lyrical_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+soar_c:[[1046.5,0.5],[1318.51,0.5],[1567.98,0.5],[1396.91,0.5],[1318.51,1.0],[1046.5,1.0],[1396.91,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+},
+Shakuhachi:{
+power_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+},
+GlassHarm:{
+sparkle_am:[[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[440.0,0.5],[523.25,0.5],[698.46,0.5],[523.25,0.5],[392.0,0.5],[659.26,0.5],[783.99,0.5],[659.26,0.5],[392.0,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5],[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[440.0,0.5],[523.25,0.5],[698.46,0.5],[523.25,0.5],[293.66,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[329.63,0.5],[415.3,0.5],[493.88,0.5],[659.26,0.5]],
+sparkle_c:[[523.25,0.5],[783.99,0.5],[1046.5,0.5],[783.99,0.5],[523.25,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[493.88,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5],[523.25,0.5],[783.99,0.5],[1046.5,0.5],[783.99,0.5],[523.25,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[493.88,0.5],[659.26,0.5],[783.99,0.5],[659.26,0.5],[493.88,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5]],
+chorus_c:[[1046.5,2.0],[659.26,2.0],[1046.5,2.0],[880.0,2.0],[880.0,2.0],[659.26,2.0],[987.77,2.0],[587.33,2.0]],
+resolve_amaj:[[880.0,4.0],[1108.73,4.0],[659.26,4.0],[440.0,4.0]],
+},
+Armonica:{
+chorus_c:[[523.25,2.0],[659.26,2.0],[523.25,2.0],[440.0,2.0],[440.0,2.0],[523.25,2.0],[493.88,2.0],[587.33,2.0]],
+resolve_amaj:[[880.0,0.5],[830.61,0.5],[739.99,0.5],[659.26,0.5],[587.33,1.0],[554.37,1.0],[493.88,0.5],[440.0,0.5],[415.3,0.5],[369.99,0.5],[329.63,1.0],[293.66,1.0],[277.18,0.5],[246.94,0.5],[220.0,0.5],[277.18,0.5],[329.63,1.0],[440.0,1.0],[440.0,1.0],[554.37,1.0],[440.0,2.0]],
+},
+};
+
+var INSTR_NAMES=['Marimba','Harp','Flute','Hangdrum','Piano','Theremin','Shakuhachi','GlassHarm','Armonica'];
+
+// =============================================================================
+// COMPOSITION — 4 sections × 30s = 120s endless loop
+// Section: {jp, en, dur, ramp, parts[9], fsw?}
+// parts[i] = null OR {d: dynamic 0..1, p: phrase name}
+// fsw = filter sweep for Section 4
+// =============================================================================
+var COMPOSITION=[
+  {jp:'大地',en:'Earth opens',dur:32,ramp:4,parts:[{d:0.7,p:'intro_am'},null,null,null,null,null,null,{d:0.35,p:'sparkle_am'},null,]},
+  {jp:'流',en:'Modulation',dur:32,ramp:4,parts:[null,{d:0.6,p:'cascade_c'},{d:0.85,p:'pure_c'},null,{d:0.6,p:'leap_c'},{d:0.75,p:'lyrical_c'},null,{d:0.3,p:'sparkle_c'},null,]},
+  {jp:'響',en:'Resonance',dur:32,ramp:6,parts:[{d:0.9,p:'drive_c'},{d:0.85,p:'cascade_c'},{d:0.9,p:'ornament_c'},{d:0.8,p:'calls_c'},{d:0.8,p:'roll_c'},{d:0.85,p:'soar_c'},{d:0.9,p:'power_c'},{d:0.55,p:'chorus_c'},{d:0.75,p:'chorus_c'},]},
+  {jp:'天',en:'Crown dissolves',dur:32,ramp:4,parts:[null,null,null,null,null,null,null,{d:0.4,p:'resolve_amaj'},{d:0.65,p:'resolve_amaj'},],fsw:{d:[20000,2000,4,0],u:[2000,20000,20,8]}}
+];
+
+var COMP_CYCLE_LEN=128;
+var SEC_EN=['Earth opens','Modulation','Resonance','Crown dissolves'];
+
+// Ambient pad chord voicings in A natural minor (Am7, Fmaj7, C6/9, Gsus2)
+var CHORDS=[
+  [110.00,164.81,261.63,392.00],
+  [87.31,174.61,261.63,349.23],
+  [130.81,196.00,329.63,440.00],
+  [98.00,146.83,220.00,293.66]
+];
+var MELODY_NOTES=[440.00,523.25,587.33,659.26,783.99,880.00];
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+var audioCtx=null, masterGain=null, masterLimiter=null;
+var shoreGainNode=null, musicGainNode=null, orchGainNode=null;
+
+// Binaural ocean
+var channels=[];
+var allBandsMode=false, allBandsObj=null;
+
+// Shore
+var shoreStatic=null, shoreSchedulerTimer=null, nextWaveTime=0;
+var shorePinkBuf=null, shoreOrchPaused=false;
+
+// Ambient pads
+var chordTimer=null, melodyTimer=null;
+var activeChords=[], musicOscs=[], chordIndex=0;
+
+// Orchestra
+var orchestraMode=false;
+var autoModesApplied=false;
+var orchestraOscs=[], orchestraTimers=[];
+var dynamicsEnvs=[];
+var compCycleTimer=null, compStartT=0;
+var orchestraFilter=null;
+
+var playing=false;
+
+// ============================================================================
+// DOM REFERENCES
+// ============================================================================
+
+var leftSlider=document.getElementById('leftFreq');
+var rightSlider=document.getElementById('rightFreq');
+var volSlider=document.getElementById('volume');
+var shoreSlider=document.getElementById('shoreVol');
+var musicSlider=document.getElementById('musicVol');
+var orchSlider=document.getElementById('orchVol');
+var leftVal=document.getElementById('leftVal');
+var rightVal=document.getElementById('rightVal');
+var volVal=document.getElementById('volVal');
+var shoreVal=document.getElementById('shoreVal');
+var musicVal=document.getElementById('musicVal');
+var orchVal=document.getElementById('orchVal');
+var beatHz=document.getElementById('beatHz');
+var playBtn=document.getElementById('playBtn');
+var allBandsBtn=document.getElementById('allBandsBtn');
+var orchBtn=document.getElementById('orchBtn');
+var canvas=document.getElementById('waveCanvas');
+var cCtx=canvas.getContext('2d');
+var timeline=document.getElementById('timeline');
+var tlGrid=document.getElementById('tlGrid');
+var tlTime=document.getElementById('tlTime');
+var tlNow=document.getElementById('tlNow');
+var tlEn=document.getElementById('tlEn');
+var tlSegs=[]; // populated when timeline first builds
+function buildTimelineDOM(){
+  if(tlSegs.length>0)return;
+  tlGrid.innerHTML='';
+  for(var i=0;i<COMPOSITION.length;i++){
+    var seg=document.createElement('div');
+    seg.className='tl-seg';
+    var num=document.createElement('span');num.className='tl-num';num.textContent=(i+1);
+    var nm=document.createElement('span');nm.className='tl-name';nm.innerHTML=COMPOSITION[i].jp;
+    var fill=document.createElement('div');fill.className='tl-fill';
+    seg.appendChild(num);seg.appendChild(nm);seg.appendChild(fill);
+    tlGrid.appendChild(seg);
+    tlSegs.push({seg:seg,fill:fill});
+  }
+}
+
+// ============================================================================
+// VISUALIZATION
+// ============================================================================
+
+function resizeCanvas(){
+  var r=canvas.getBoundingClientRect();
+  canvas.width=Math.round(r.width*devicePixelRatio);
+  canvas.height=Math.round(r.height*devicePixelRatio);
+}
+resizeCanvas();
+window.addEventListener('resize',resizeCanvas);
+
+var wt=0, ni=0, noiseL=[], noiseR=[];
+for(var _i=0;_i<400;_i++){noiseL.push(Math.random()*2-1);noiseR.push(Math.random()*2-1);}
+
+function drawWave(){
+  requestAnimationFrame(drawWave);
+  var dpr=devicePixelRatio, w=canvas.width/dpr, h=canvas.height/dpr;
+  cCtx.save(); cCtx.scale(dpr,dpr); cCtx.clearRect(0,0,w,h);
+  cCtx.beginPath();
+  cCtx.strokeStyle=playing?'rgba(79,195,247,0.65)':'rgba(79,195,247,0.18)';
+  cCtx.lineWidth=1.5;
+  for(var x=0;x<w;x++){
+    var s1=Math.sin(wt*0.83+x/w*Math.PI*1.7)*0.5+0.5;
+    var s2=Math.sin(wt*1.07+x/w*Math.PI*2.3+1.1)*0.5+0.5;
+    var y=h/2+noiseL[(ni+x)%noiseL.length]*h*0.30*(s1*0.6+s2*0.4);
+    x===0?cCtx.moveTo(x,y):cCtx.lineTo(x,y);
+  }
+  cCtx.stroke();
+  cCtx.beginPath();
+  cCtx.strokeStyle=playing?'rgba(240,98,146,0.65)':'rgba(240,98,146,0.18)';
+  cCtx.lineWidth=1.5;
+  for(var x2=0;x2<w;x2++){
+    var s3=Math.sin(wt*0.77+x2/w*Math.PI*1.9+0.7)*0.5+0.5;
+    var s4=Math.sin(wt*0.99+x2/w*Math.PI*2.1+2.2)*0.5+0.5;
+    var y2=h/2+noiseR[(ni+x2+80)%noiseR.length]*h*0.30*(s3*0.6+s4*0.4);
+    x2===0?cCtx.moveTo(x2,y2):cCtx.lineTo(x2,y2);
+  }
+  cCtx.stroke();
+  if(playing){wt+=0.018; if(++ni>=400)ni=0;}
+  cCtx.restore();
+  updateSectionIndicator();
+}
+drawWave();
+
+function formatTime(s){
+  var m=Math.floor(s/60), ss=Math.floor(s%60);
+  return m+':'+(ss<10?'0'+ss:ss);
+}
+
+function updateSectionIndicator(){
+  // Timeline source: BG playback position when BG is active (audioCtx is
+  // suspended then), otherwise live orchestra position.
+  var elapsed=null;
+  if(bgActive&&bgAudioEl&&isFinite(bgAudioEl.currentTime)){
+    elapsed=bgAudioEl.currentTime%COMP_CYCLE_LEN;
+  }else if(playing&&orchestraMode&&audioCtx){
+    elapsed=(audioCtx.currentTime-compStartT)%COMP_CYCLE_LEN;
+  }
+  if(elapsed===null){
+    if(timeline.classList.contains('show'))timeline.classList.remove('show');
+    return;
+  }
+  buildTimelineDOM();
+  if(!timeline.classList.contains('show'))timeline.classList.add('show');
+  if(elapsed<0)elapsed+=COMP_CYCLE_LEN;
+  var cumDur=0, activeIdx=0, inSec=0;
+  for(var i=0;i<COMPOSITION.length;i++){
+    var sec=COMPOSITION[i];
+    if(elapsed<cumDur+sec.dur){activeIdx=i;inSec=elapsed-cumDur;break;}
+    cumDur+=sec.dur;
+  }
+  // Update each segment's state and fill
+  for(var j=0;j<tlSegs.length;j++){
+    var s=tlSegs[j];
+    s.seg.classList.remove('active','done','pending');
+    if(j<activeIdx){s.seg.classList.add('done');}
+    else if(j===activeIdx){s.seg.classList.add('active');s.fill.style.width=(inSec/COMPOSITION[j].dur*100)+'%';}
+    else{s.seg.classList.add('pending');s.fill.style.width='0%';}
+  }
+  tlNow.innerHTML=COMPOSITION[activeIdx].jp;
+  tlEn.textContent=SEC_EN[activeIdx];
+  tlTime.textContent=formatTime(elapsed)+' / '+formatTime(COMP_CYCLE_LEN);
+  updateChipHighlight(activeIdx);
+}
+
+// Precompute which instruments appear ANYWHERE in the composition, and
+// their maximum dynamic across all sections. The BG render always contains
+// all of them, so showing a constant highlight (instead of a per-section
+// flicker) makes the live chip display match what BG actually plays.
+var CHIP_MAXDYN = (function(){
+  var maxd = new Array(9).fill(0);
+  COMPOSITION.forEach(function(sec){
+    sec.parts.forEach(function(part, i){
+      if(part && part.d > maxd[i]) maxd[i] = part.d;
+    });
+  });
+  return maxd;
+})();
+
+function updateChipHighlight(sectionIdx){
+  // Constant highlight based on whole-composition presence (not per-section),
+  // so it agrees with the BG render which contains every instrument.
+  var chips=document.querySelectorAll('.sol-chip');
+  chips.forEach(function(c,i){
+    c.classList.remove('lead','support','silent');
+    var d=CHIP_MAXDYN[i];
+    if(d>=0.7)c.classList.add('lead');
+    else if(d>=0.25)c.classList.add('support');
+    else c.classList.add('silent');
+  });
+}
+
+// ============================================================================
+// UI HANDLERS
+// ============================================================================
+
+function updateDisplay(){
+  var l=+leftSlider.value, r=+rightSlider.value;
+  leftVal.innerHTML=l+'<span class="unit">Hz</span>';
+  rightVal.innerHTML=r+'<span class="unit">Hz</span>';
+  beatHz.innerHTML=Math.abs(l-r)+'<span>Hz beat</span>';
+  if(channels.length===2){
+    [channels[0].bp1,channels[0].bp2].forEach(function(f){f.frequency.setTargetAtTime(l,audioCtx.currentTime,0.08);});
+    [channels[1].bp1,channels[1].bp2].forEach(function(f){f.frequency.setTargetAtTime(r,audioCtx.currentTime,0.08);});
+  }
+}
+function updateVol(){var v=+volSlider.value;volVal.textContent=v+'%';if(masterGain)masterGain.gain.setTargetAtTime(v/100,audioCtx.currentTime,0.05);if(bgAudioEl&&bgActive){bgAudioEl.volume=Math.min(1,v/100*1.4);}}
+function updateShore(){var v=+shoreSlider.value;shoreVal.textContent=v+'%';if(shoreGainNode)shoreGainNode.gain.setTargetAtTime(v/100*0.7,audioCtx.currentTime,0.05);}
+function updateMusic(){var v=+musicSlider.value;musicVal.textContent=v+'%';if(musicGainNode)musicGainNode.gain.setTargetAtTime(v/100*0.55,audioCtx.currentTime,0.05);}
+function updateOrch(){var v=+orchSlider.value;orchVal.textContent=v+'%';if(orchGainNode)orchGainNode.gain.setTargetAtTime(v/100*0.6,audioCtx.currentTime,0.05);}
+leftSlider.addEventListener('input',updateDisplay);
+rightSlider.addEventListener('input',updateDisplay);
+volSlider.addEventListener('input',updateVol);
+shoreSlider.addEventListener('input',updateShore);
+musicSlider.addEventListener('input',updateMusic);
+orchSlider.addEventListener('input',updateOrch);
+
+// Build solfeggio chips
+var activeChip=null;
+function activateSol(sf,chipEl){
+  leftSlider.value=sf.hz-5; rightSlider.value=sf.hz+5; updateDisplay();
+  if(activeChip)activeChip.classList.remove('active');
+  chipEl.classList.add('active'); activeChip=chipEl;
+}
+(function buildChips(){
+  var grid=document.getElementById('solGrid');
+  SOL_DATA.forEach(function(sf){
+    var chip=document.createElement('div');
+    chip.className='sol-chip';
+    chip.title=sf.themeJP+' '+sf.themeEN+' &mdash; '+sf.instr+' ['+sf.cat+']';
+    var hz=document.createElement('div');hz.className='s-hz';hz.textContent=sf.hz+'Hz';
+
+    var instr=document.createElement('div');instr.className='s-instr';instr.textContent=sf.instr;
+    chip.appendChild(hz);chip.appendChild(instr);
+    chip.addEventListener('click',function(){activateSol(sf,chip);});
+    grid.appendChild(chip);
+  });
+  var bgBtn=document.getElementById('bgModeBtn');
+  if(bgBtn)bgBtn.addEventListener('click',toggleBgMode);
+  [leftSlider,rightSlider,orchSlider,musicSlider,shoreSlider].forEach(function(s){
+    if(s)s.addEventListener('input',checkBgDirty);
+  });
+  allBandsBtn.addEventListener('click',checkBgDirty);
+  orchBtn.addEventListener('click',checkBgDirty);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden&&audioCtx&&audioCtx.state==='suspended'&&playing&&!bgActive){
+      audioCtx.resume().catch(function(){});
+    }
+  });
+})();
+
+// ============================================================================
+// AUDIO UTILITIES
+// ============================================================================
+
+// Pink noise (1/f) buffer via Paul Kellet's filter approximation
+function makePinkBuffer(ctx,seconds){
+  var sr=ctx.sampleRate, len=Math.floor(sr*seconds);
+  var buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
+  var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(var ii=0;ii<len;ii++){
+    var w=Math.random()*2-1;
+    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+    b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+    b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+    d[ii]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+    b6=w*0.115926;
+  }
+  return buf;
+}
+
+// Aperiodic frequency wander — 3 incommensurate slow oscillators summed
+function makeWander(ctx,range,oList){
+  var rates=[0.029,0.067,0.113];
+  return rates.map(function(rate){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.004;
+    var depth=ctx.createGain(); depth.gain.value=range/3;
+    osc.connect(depth); osc.start();
+    if(oList)oList.push(osc);
+    return{osc:osc,depth:depth};
+  });
+}
+function connectWander(wArr,param){wArr.forEach(function(w){w.depth.connect(param);});}
+
+// Convolution reverb from synthetic exponential-decay IR
+function buildReverb(ctx){
+  var sr=ctx.sampleRate, len=Math.floor(sr*3.8);
+  var ir=ctx.createBuffer(2,len,sr);
+  for(var ch=0;ch<2;ch++){
+    var d=ir.getChannelData(ch);
+    for(var ii=0;ii<len;ii++)d[ii]=(Math.random()*2-1)*Math.pow(1-ii/len,2.0);
+  }
+  var conv=ctx.createConvolver(); conv.buffer=ir;
+  var wet=ctx.createGain(); wet.gain.value=0.72;
+  conv.connect(wet);
+  return{input:conv,output:wet};
+}
+
+// Custom periodic waveforms (additive synthesis from harmonic spectra)
+function makePeriodicWave(ctx,harmonics){
+  var real=new Float32Array(harmonics.length+1);
+  var imag=new Float32Array(harmonics.length+1);
+  real[0]=0;
+  harmonics.forEach(function(h,ii){real[ii+1]=h;});
+  return ctx.createPeriodicWave(real,imag);
+}
+function getWave(ctx,wvName){
+  if(wvName==='piano')      return makePeriodicWave(ctx,[1,0.45,0.18,0.10,0.05,0.02]);
+  if(wvName==='marimba')    return makePeriodicWave(ctx,[1,0.10,0.05,0.55,0,0,0,0,0.15]);
+  if(wvName==='harp')       return makePeriodicWave(ctx,[1,0.50,0.30,0.15,0.08,0.04,0.02]);
+  if(wvName==='hangdrum')   return makePeriodicWave(ctx,[1,0.65,0.50,0.40,0.30,0.18,0.10]);
+  if(wvName==='shakuhachi') return makePeriodicWave(ctx,[1,0.25,0.08,0.04,0.02]);
+  if(wvName==='glass')      return makePeriodicWave(ctx,[1,0,0,0.30,0,0.15,0,0,0.08]);
+  if(wvName==='armonica')   return makePeriodicWave(ctx,[1,0.40,0.25,0.10,0.12,0.06]);
+  return null;
+}
+
+// ============================================================================
+// OCEAN (BINAURAL CHANNELS)
+// ============================================================================
+
+function buildChannel(ctx,pinkBuf,freq,panVal,loopOffset){
+  var src=ctx.createBufferSource();
+  src.buffer=pinkBuf; src.loop=true;
+  src.loopStart=loopOffset; src.loopEnd=pinkBuf.duration;
+  var bp1=ctx.createBiquadFilter(); bp1.type='bandpass'; bp1.frequency.value=freq; bp1.Q.value=3.0;
+  var bp2=ctx.createBiquadFilter(); bp2.type='bandpass'; bp2.frequency.value=freq; bp2.Q.value=3.0;
+  var shelf=ctx.createBiquadFilter(); shelf.type='lowshelf'; shelf.frequency.value=65; shelf.gain.value=9;
+  var sg=ctx.createGain(); sg.gain.value=0.55;
+  // Swell — 4 LFOs at incommensurate rates create non-repeating amplitude variation
+  var rates=[0.083,0.107,0.143,0.191], depths=[0.12,0.09,0.07,0.05];
+  var lfos=rates.map(function(rate,ii){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.006;
+    var dg=ctx.createGain(); dg.gain.value=depths[ii];
+    osc.connect(dg); dg.connect(sg.gain); osc.start();
+    return osc;
+  });
+  // Frequency wander — shared between bp1 and bp2 so L/R stay 10Hz apart
+  var wArr=makeWander(ctx,Math.min(freq*0.12,40),null);
+  connectWander(wArr,bp1.frequency); connectWander(wArr,bp2.frequency);
+  var pan=ctx.createStereoPanner(); pan.pan.value=panVal;
+  src.connect(bp1); bp1.connect(bp2); bp2.connect(shelf); shelf.connect(sg); sg.connect(pan);
+  src.start();
+  return{src:src,bp1:bp1,bp2:bp2,lfos:lfos,panner:pan,woscs:wArr.map(function(w){return w.osc;})};
+}
+
+function buildAllBands(ctx,outGain){
+  var allWoscs=[]; var pinkBuf=makePinkBuffer(ctx,13);
+  var sg=ctx.createGain(); sg.gain.value=0.52; sg.connect(outGain);
+  var rates=[0.079,0.103,0.139,0.187], depths=[0.09,0.07,0.05,0.04];
+  var lfos=rates.map(function(rate,ii){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.005;
+    var dg=ctx.createGain(); dg.gain.value=depths[ii];
+    osc.connect(dg); dg.connect(sg.gain); osc.start();
+    return osc;
+  });
+  var bv=0.55/SOL_DATA.length, sources=[];
+  SOL_DATA.forEach(function(sf,ii){
+    var lHz=sf.hz-5, rHz=sf.hz+5, off=(ii*1.3)%11;
+    var bwArr=makeWander(ctx,Math.min(sf.hz*0.11,45),allWoscs);
+    function mkB(hz,pv,lo){
+      var s=ctx.createBufferSource(); s.buffer=pinkBuf; s.loop=true;
+      s.loopStart=lo; s.loopEnd=pinkBuf.duration;
+      var f1=ctx.createBiquadFilter(); f1.type='bandpass'; f1.frequency.value=hz; f1.Q.value=3.2;
+      var f2=ctx.createBiquadFilter(); f2.type='bandpass'; f2.frequency.value=hz; f2.Q.value=3.2;
+      var sh=ctx.createBiquadFilter(); sh.type='lowshelf'; sh.frequency.value=65; sh.gain.value=7;
+      var g=ctx.createGain(); g.gain.value=bv;
+      var p=ctx.createStereoPanner(); p.pan.value=pv;
+      connectWander(bwArr,f1.frequency); connectWander(bwArr,f2.frequency);
+      s.connect(f1); f1.connect(f2); f2.connect(sh); sh.connect(g); g.connect(p); p.connect(sg);
+      s.start(); sources.push(s);
+    }
+    mkB(lHz,-1,off); mkB(rHz,1,off+0.65);
+  });
+  return{sg:sg,lfos:lfos,sources:sources,woscs:allWoscs};
+}
+
+function stopAllBands(){
+  if(!allBandsObj)return;
+  allBandsObj.sources.forEach(function(s){try{s.stop();}catch(e){}});
+  allBandsObj.lfos.forEach(function(l){try{l.stop();}catch(e){}});
+  if(allBandsObj.woscs)allBandsObj.woscs.forEach(function(o){try{o.stop();}catch(e){}});
+  allBandsObj=null;
+}
+
+allBandsBtn.addEventListener('click',function(){
+  allBandsMode=!allBandsMode;
+  allBandsBtn.classList.toggle('all-active',allBandsMode);
+  allBandsBtn.innerHTML=allBandsMode?'&#9711; ALL \u25cf':'&#9711; ALL';
+  document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.toggle('active',allBandsMode);});
+  if(!playing)return;
+  if(allBandsMode){
+    channels.forEach(function(ch){
+      try{ch.src.stop();}catch(e){}
+      ch.lfos.forEach(function(l){try{l.stop();}catch(e){}});
+      if(ch.woscs)ch.woscs.forEach(function(o){try{o.stop();}catch(e){}});
+    });
+    channels=[];
+    allBandsObj=buildAllBands(audioCtx,masterGain);
+  }else{
+    stopAllBands();
+    var bf=makePinkBuffer(audioCtx,11);
+    var lf=+leftSlider.value, rf=+rightSlider.value;
+    channels=[buildChannel(audioCtx,bf,lf,-1,0),buildChannel(audioCtx,bf,rf,1,3.5)];
+    channels[0].panner.connect(masterGain);
+    channels[1].panner.connect(masterGain);
+  }
+});
+
+// ============================================================================
+// SHORE (FOAM + WAVE EVENTS)
+// ============================================================================
+
+function buildFoam(ctx,pinkBuf,outGain){
+  var src=ctx.createBufferSource();
+  src.buffer=pinkBuf; src.loop=true;
+  src.loopStart=2.5; src.loopEnd=pinkBuf.duration;
+  var hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1600; hp.Q.value=0.6;
+  var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=7000; lp.Q.value=0.5;
+  var g=ctx.createGain(); g.gain.value=0.12;
+  var lfo=ctx.createOscillator(); lfo.type='sine'; lfo.frequency.value=0.13;
+  var dg=ctx.createGain(); dg.gain.value=0.05;
+  lfo.connect(dg); dg.connect(g.gain); lfo.start();
+  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(outGain); src.start();
+  return{src:src,lfo:lfo};
+}
+
+// Wave with optional intensity multiplier (1.0 = normal)
+function scheduleWave(t,intensity){
+  intensity=intensity||1.0;
+  var attack=1.2+Math.random()*1.0, sustain=0.4+Math.random()*0.5;
+  var decay=4.5+Math.random()*3.5, total=attack+sustain+decay;
+  var peak=(0.55+Math.random()*0.45)*intensity;
+  var src=audioCtx.createBufferSource(); src.buffer=shorePinkBuf; src.loop=true;
+  var bp=audioCtx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value=380+Math.random()*900; bp.Q.value=0.8+Math.random()*1.3;
+  var bright=audioCtx.createBiquadFilter(); bright.type='highshelf';
+  bright.frequency.value=2000; bright.gain.value=Math.random()*5;
+  var env=audioCtx.createGain();
+  env.gain.setValueAtTime(0.0001,t);
+  env.gain.linearRampToValueAtTime(peak,t+attack);
+  env.gain.setValueAtTime(peak,t+attack+sustain);
+  env.gain.exponentialRampToValueAtTime(0.0001,t+total);
+  src.connect(bp); bp.connect(bright); bright.connect(env); env.connect(shoreGainNode);
+  src.start(t); src.stop(t+total+0.05);
+}
+
+// Random shore scheduler (active when orchestra is OFF)
+function runShoreScheduler(){
+  if(!playing||!audioCtx)return;
+  var now=audioCtx.currentTime;
+  while(nextWaveTime<now+2.5){
+    scheduleWave(nextWaveTime,1.0);
+    nextWaveTime+=5+Math.random()*9;
+  }
+  shoreSchedulerTimer=setTimeout(runShoreScheduler,400);
+}
+
+// ============================================================================
+// AMBIENT PADS (CHORDS + MELODY)
+// ============================================================================
+
+function startChord(ctx,freqs,reverbIn){
+  var t=ctx.currentTime+0.02;
+  var cg=ctx.createGain();
+  cg.gain.setValueAtTime(0.0001,t);
+  cg.gain.linearRampToValueAtTime(0.38,t+5.5);
+  var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; lp.Q.value=0.5;
+  cg.connect(lp); lp.connect(reverbIn);
+  var oscs=[];
+  freqs.forEach(function(freq){
+    [{d:0,tp:'sine',v:0.20},{d:8,tp:'sine',v:0.09},{d:-5,tp:'triangle',v:0.06}].forEach(function(s){
+      var osc=ctx.createOscillator(); osc.type=s.tp;
+      osc.frequency.value=freq; osc.detune.value=s.d;
+      var g=ctx.createGain(); g.gain.value=s.v;
+      osc.connect(g); g.connect(cg); osc.start(t);
+      oscs.push(osc); musicOscs.push(osc);
+    });
+  });
+  while(activeChords.length>0){
+    (function(old){
+      old.gain.gain.setTargetAtTime(0.0001,t,2.8);
+      var kill=old.oscs;
+      setTimeout(function(){
+        kill.forEach(function(o){try{o.stop();}catch(e){}});
+        musicOscs=musicOscs.filter(function(x){return kill.indexOf(x)===-1;});
+      },10000);
+    })(activeChords.shift());
+  }
+  activeChords.push({gain:cg,oscs:oscs});
+}
+
+function doMelodyNote(ctx,reverbIn){
+  if(!playing)return;
+  var freq=MELODY_NOTES[Math.floor(Math.random()*MELODY_NOTES.length)];
+  var t=ctx.currentTime, dur=2.8+Math.random()*2.5;
+  var osc=ctx.createOscillator(); osc.type='sine'; osc.frequency.value=freq;
+  var env=ctx.createGain();
+  env.gain.setValueAtTime(0,t);
+  env.gain.linearRampToValueAtTime(0.085,t+0.18);
+  env.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  osc.connect(env); env.connect(reverbIn);
+  osc.start(t); osc.stop(t+dur+0.1);
+  musicOscs.push(osc);
+  melodyTimer=setTimeout(function(){doMelodyNote(ctx,reverbIn);},3500+Math.random()*7500);
+}
+
+function startMusic(ctx,outGain){
+  var reverb=buildReverb(ctx);
+  reverb.output.connect(outGain);
+  // 0.047 Hz breathing modulation on the music master
+  var breath=ctx.createOscillator(); breath.type='sine'; breath.frequency.value=0.047;
+  var bd=ctx.createGain(); bd.gain.value=0.04;
+  breath.connect(bd); bd.connect(outGain.gain); breath.start();
+  musicOscs.push(breath);
+  chordIndex=0;
+  startChord(ctx,CHORDS[0],reverb.input);
+  function scheduleNext(){
+    if(!playing)return;
+    chordTimer=setTimeout(function(){
+      if(!playing)return;
+      chordIndex=(chordIndex+1)%CHORDS.length;
+      startChord(ctx,CHORDS[chordIndex],reverb.input);
+      scheduleNext();
+    },14000+Math.random()*8000);
+  }
+  scheduleNext();
+  melodyTimer=setTimeout(function(){doMelodyNote(ctx,reverb.input);},3200);
+}
+
+function stopMusic(){
+  clearTimeout(chordTimer); clearTimeout(melodyTimer);
+  chordTimer=null; melodyTimer=null;
+  musicOscs.forEach(function(o){try{o.stop();}catch(e){}});
+  musicOscs=[]; activeChords=[]; chordIndex=0;
+}
+
+// ============================================================================
+// ORCHESTRA — SCHEDULE NOTE
+// ============================================================================
+// ORCHESTRA — INSTRUMENT LOOPS
+// ============================================================================
+// ORCHESTRA — PERSISTENT VOICE ARCHITECTURE
+// 
+// Each instrument has ONE oscillator that runs continuously from startOrchestra
+// to stopOrchestra. Phase stays continuous. Section transitions and note
+// playback are controlled purely by gain ramps — no new oscillators, no
+// phase collisions, no interference noise.
+// ============================================================================
+
+// `voices` array holds the persistent voice for each instrument.
+// Each voice is { osc, filt, noteEnv, sectionEnv, panner, vibOsc, fmOsc, instr, lastFreq }
+var voices = [];
+
+// Create a persistent voice for one instrument. Runs from t0 until stopped.
+function createVoice(ctx, instr, outGain, t0) {
+  // Main oscillator
+  var osc = ctx.createOscillator();
+  if (instr.wv === 'sine') {
+    osc.type = 'sine';
+  } else {
+    osc.setPeriodicWave(getWave(ctx, instr.wv));
+  }
+  // Initial frequency: A3 (innocuous default; will be overwritten by playNote)
+  osc.frequency.setValueAtTime(220, t0);
+  
+  // Filter
+  var filt = ctx.createBiquadFilter();
+  filt.type = instr.ft || 'lowpass';
+  filt.frequency.value = instr.ff;
+  if (instr.fq > 1) filt.Q.value = instr.fq;
+  
+  // Note envelope — controls per-note ADSR. Starts at silence floor.
+  var noteEnv = ctx.createGain();
+  noteEnv.gain.setValueAtTime(0.00001, t0);
+  
+  // Section envelope — controls per-section dynamics. Starts at silence floor.
+  var sectionEnv = ctx.createGain();
+  sectionEnv.gain.setValueAtTime(0.00001, t0);
+  
+  // Stereo panner
+  var panner = ctx.createStereoPanner();
+  panner.pan.value = instr.pn || 0;
+  
+  // Vibrato (if instrument uses it)
+  var vibOsc = null, vibG = null;
+  if (instr.vr > 0) {
+    vibOsc = ctx.createOscillator();
+    vibOsc.type = 'sine';
+    vibOsc.frequency.value = instr.vr;
+    vibG = ctx.createGain();
+    vibG.gain.setValueAtTime(0, t0); // depth ramped per-note
+    vibOsc.connect(vibG);
+    vibG.connect(osc.detune);
+    vibOsc.start(t0);
+  }
+  
+  // FM modulator (Hangdrum)
+  var fmOsc = null, fmG = null;
+  if (instr.fm) {
+    fmOsc = ctx.createOscillator();
+    fmOsc.type = 'sine';
+    fmOsc.frequency.value = 220 * instr.fm.r;
+    fmG = ctx.createGain();
+    fmG.gain.setValueAtTime(0, t0);
+    fmOsc.connect(fmG);
+    fmG.connect(osc.frequency);
+    fmOsc.start(t0);
+  }
+  
+  // Amplitude LFO (Armonica mechanical hum)
+  var alfo = null;
+  if (instr.nm === 'Armonica') {
+    alfo = ctx.createOscillator();
+    alfo.type = 'sine';
+    alfo.frequency.value = 2.8;
+    var alfoDepth = ctx.createGain();
+    alfoDepth.gain.value = 0.015;
+    alfo.connect(alfoDepth);
+    alfoDepth.connect(noteEnv.gain);
+    alfo.start(t0);
+  }
+  
+  // Connect: osc → filt → noteEnv → sectionEnv → panner → outGain
+  osc.connect(filt);
+  filt.connect(noteEnv);
+  noteEnv.connect(sectionEnv);
+  sectionEnv.connect(panner);
+  panner.connect(outGain);
+  
+  osc.start(t0);
+  
+  return {
+    osc: osc, filt: filt, noteEnv: noteEnv, sectionEnv: sectionEnv,
+    panner: panner, vibOsc: vibOsc, vibG: vibG,
+    fmOsc: fmOsc, fmG: fmG, alfo: alfo,
+    instr: instr, lastFreq: 220
+  };
+}
+
+// Play one note on a persistent voice. Schedules frequency + ADSR ramps.
+// DESIGN: NO cancelScheduledValues — WebKit value-jump bugs make mid-ramp
+// cancels click/pop. Instead, every envelope event is clamped inside the
+// note's own time window [t, t+dur]. Since notes are batch-scheduled in
+// strictly ascending order per voice, events never collide.
+function playNoteOnVoice(voice, freq, dur, t) {
+  if (freq <= 0 || dur <= 0) return;
+  var instr = voice.instr;
+  var noteEnd = t + dur;
+  
+  // Frequency: Theremin uses portamento; others snap while env is at floor.
+  if (instr.nm === 'Theremin') {
+    voice.osc.frequency.setTargetAtTime(freq, t, 0.08);
+  } else {
+    voice.osc.frequency.setValueAtTime(freq, t);
+  }
+  
+  // FM follows main frequency (Hangdrum) — bounded within note window
+  if (voice.fmOsc) {
+    voice.fmOsc.frequency.setValueAtTime(freq * instr.fm.r, t);
+    var fg = voice.fmG.gain;
+    fg.setValueAtTime(0.0001, t);
+    fg.linearRampToValueAtTime(instr.fm.d * freq * 0.01, t + 0.005);
+    fg.exponentialRampToValueAtTime(0.0001, Math.min(t + instr.fm.dc, noteEnd));
+  }
+  
+  // Vibrato depth — rises after delay, returns to 0 by note end
+  if (voice.vibG) {
+    var vg = voice.vibG.gain;
+    var vStart = t + (instr.vdl || 0.05);
+    if (vStart < noteEnd - 0.1) {
+      vg.setValueAtTime(0, t);
+      vg.setValueAtTime(0, vStart);
+      vg.linearRampToValueAtTime(instr.vd, Math.min(vStart + 0.2, noteEnd - 0.05));
+      vg.linearRampToValueAtTime(0, noteEnd);
+    }
+  }
+  
+  // ADSR on noteEnv — all events inside [t, noteEnd], start & end at floor.
+  var g = voice.noteEnv.gain;
+  var atk = Math.min(instr.atk, dur * 0.3);
+  var peakT = t + atk;
+  var isPerc = instr.sus < 0.10;
+  
+  g.setValueAtTime(0.0001, t); // previous note already ended at floor — no jump
+  g.linearRampToValueAtTime(instr.g, peakT);
+  
+  if (isPerc) {
+    // Percussive: exponential ring-out, clamped to note window
+    g.exponentialRampToValueAtTime(0.0001, Math.min(peakT + instr.dcy, noteEnd));
+  } else {
+    // Sustained: decay to sustain, hold, release — all within window
+    var decT = Math.min(peakT + instr.dcy, t + dur * 0.5);
+    var sustainLevel = Math.max(instr.g * instr.sus, 0.0001);
+    g.linearRampToValueAtTime(sustainLevel, decT);
+    var relDur = Math.min(instr.rel, dur * 0.3);
+    g.setValueAtTime(sustainLevel, noteEnd - relDur);
+    g.linearRampToValueAtTime(0.0001, noteEnd);
+  }
+}
+
+// Play a 15s phrase looping in a 30s section (always 2 complete loops).
+function playPhraseOnVoice(voice, phrase, sectionStart, sectionDur) {
+  var t = sectionStart;
+  var sectionEnd = sectionStart + sectionDur;
+  while (t + 16.0 <= sectionEnd + 0.01) {
+    for (var i = 0; i < phrase.length; i++) {
+      var n = phrase[i];
+      if (n[0] > 0) {
+        playNoteOnVoice(voice, n[0], n[1], t);
+      }
+      // Rest: silence is automatic (no note scheduled)
+      t += n[1];
+    }
+  }
+}
+
+// =============================================================================
+// CYCLE SCHEDULER
+// =============================================================================
+
+// Parameterized cycle scheduler: works on ANY AudioContext (live or offline)
+// with ANY voices array and filter node. This enables offline rendering for
+// iPhone background playback.
+function scheduleCycleFor(ctx, cycleStart, vcs, filterNode) {
+  var sectionStarts = [];
+  var st = cycleStart;
+  COMPOSITION.forEach(function(sec) { sectionStarts.push(st); st += sec.dur; });
+  
+  // 1. Schedule phrase notes on each voice
+  COMPOSITION.forEach(function(sec, sIdx) {
+    var sectionStart = sectionStarts[sIdx];
+    sec.parts.forEach(function(part, iIdx) {
+      if (!part) return;
+      var voice = vcs[iIdx];
+      if (!voice) return;
+      var phrase = PHRASES[INSTR_NAMES[iIdx]][part.p];
+      if (!phrase) return;
+      playPhraseOnVoice(voice, phrase, sectionStart, sec.dur);
+    });
+  });
+  
+  // 2. Section dynamics — single linear ramp per section on sectionEnv
+  COMPOSITION.forEach(function(sec, sIdx) {
+    var sStart = sectionStarts[sIdx];
+    INSTRUMENTS.forEach(function(_, idx) {
+      var voice = vcs[idx]; if (!voice) return;
+      var part = sec.parts[idx];
+      var target = part ? Math.max(part.d, 0.00001) : 0.00001;
+      var rampT = sec.ramp || 6;
+      rampT = Math.min(rampT, sec.dur - 2);
+      voice.sectionEnv.gain.linearRampToValueAtTime(target, sStart + rampT);
+      voice.sectionEnv.gain.setValueAtTime(target, sStart + sec.dur);
+    });
+  });
+  
+  // 3. Filter sweep (Section 4 only)
+  if (filterNode) {
+    var f = filterNode.frequency;
+    f.setValueAtTime(20000, cycleStart);
+    COMPOSITION.forEach(function(sec, sIdx) {
+      if (!sec.fsw) return;
+      var sStart = sectionStarts[sIdx];
+      var d = sec.fsw.d, u = sec.fsw.u;
+      if (d) {
+        f.setValueAtTime(d[0], sStart + d[3]);
+        f.setTargetAtTime(d[1], sStart + d[3], d[2] * 0.20);
+      }
+      if (u) {
+        f.setTargetAtTime(u[1], sStart + u[3], u[2] * 0.20);
+      }
+    });
+  }
+}
+
+// Live wrapper: uses global voices + orchestraFilter
+function scheduleCycle(ctx, cycleStart) {
+  scheduleCycleFor(ctx, cycleStart, voices, orchestraFilter);
+}
+
+// =============================================================================
+// iPHONE BACKGROUND PLAYBACK — offline render → WAV → <audio loop> + MediaSession
+//
+// iOS Safari suspends Web Audio when the screen locks. But an <audio> element
+// is treated as media playback: it continues in background AND gets
+// lock-screen controls. So we render the 128s composition offline once,
+// wrap it in a WAV blob, and loop it through a hidden <audio> element.
+// =============================================================================
+
+var bgAudioEl = null;      // hidden <audio> element
+var bgBlobUrl = null;      // object URL of rendered WAV
+var bgActive = false;      // BG mode state
+var bgRendering = false;   // render in progress
+var bgSnapshot = null;     // settings snapshot at last render (dirty detection)
+var mediaProbeOk = false;  // remember successful probe — skip next time
+
+// Tiny silent WAV data URI — played instantly on button tap to secure
+// iOS media playback permission within the user gesture.
+var SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+
+// Crossfade-loop WAV encoder: takes a buffer rendered to (loopSec + xfade)
+// and produces a loopSec-long WAV where the extra tail [loopSec, loopSec+xfade]
+// is mixed back over the head [0, xfade] with an equal-power crossfade.
+// The result loops perfectly: playing end→start has no discontinuity because
+// the seam is already blended into the audio.
+function audioBufferToWavBlobLooped(buffer, sr, loopSec, xfadeSec) {
+  var numCh = buffer.numberOfChannels;
+  var loopLen = Math.floor(loopSec * sr);
+  var xfadeLen = Math.floor(xfadeSec * sr);
+  
+  // Build looped channel data
+  var outChans = [];
+  for (var c = 0; c < numCh; c++) {
+    var srcData = buffer.getChannelData(c);
+    var out = new Float32Array(loopLen);
+    // Copy the main body
+    for (var i = 0; i < loopLen; i++) out[i] = srcData[i];
+    // Fold the tail back over the head with equal-power crossfade
+    for (var j = 0; j < xfadeLen; j++) {
+      var tailIdx = loopLen + j;        // sample in the extra tail
+      if (tailIdx >= srcData.length) break;
+      var t = j / xfadeLen;             // 0..1 across the fade
+      // Equal-power curves
+      var headGain = Math.cos(t * Math.PI / 2); // head fades out 1→0
+      var tailGain = Math.sin(t * Math.PI / 2); // tail fades in 0→1
+      out[j] = out[j] * headGain + srcData[tailIdx] * tailGain;
+    }
+    outChans.push(out);
+  }
+  
+  // Loop-seam breath: gently dip the level into and out of the seam so any
+  // tiny gap the <audio> element introduces on wrap lands in near-quiet.
+  // 2.5s each side, floor 0.45 (~ -7dB) — reads musically as a wave receding.
+  var breathLen = Math.floor(2.5 * sr);
+  var dipFloor = 0.45;
+  for (var bc = 0; bc < numCh; bc++) {
+    var oc = outChans[bc];
+    for (var bi = 0; bi < breathLen && bi < loopLen; bi++) {
+      var bg = dipFloor + (1 - dipFloor) * (bi / breathLen);
+      oc[bi] *= bg;                    // head: rise 0.45 → 1
+      oc[loopLen - 1 - bi] *= bg;      // tail: fall 1 → 0.45 (mirrored)
+    }
+  }
+  
+  // Encode outChans as 16-bit PCM WAV
+  var bytesPerSample = 2;
+  var blockAlign = numCh * bytesPerSample;
+  var dataSize = loopLen * blockAlign;
+  var ab = new ArrayBuffer(44 + dataSize);
+  var dv = new DataView(ab);
+  var p = 0;
+  function ws(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+  function u32(v) { dv.setUint32(p, v, true); p += 4; }
+  function u16(v) { dv.setUint16(p, v, true); p += 2; }
+  ws('RIFF'); u32(36 + dataSize); ws('WAVE');
+  ws('fmt '); u32(16); u16(1); u16(numCh); u32(sr); u32(sr * blockAlign); u16(blockAlign); u16(16);
+  ws('data'); u32(dataSize);
+  for (var s = 0; s < loopLen; s++) {
+    for (var ch = 0; ch < numCh; ch++) {
+      var v = Math.max(-1, Math.min(1, outChans[ch][s]));
+      dv.setInt16(p, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      p += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+// Encode an AudioBuffer as 16-bit PCM WAV blob
+function audioBufferToWavBlob(buffer) {
+  var numCh = buffer.numberOfChannels;
+  var sr = buffer.sampleRate;
+  var len = buffer.length;
+  var bytesPerSample = 2;
+  var blockAlign = numCh * bytesPerSample;
+  var dataSize = len * blockAlign;
+  var ab = new ArrayBuffer(44 + dataSize);
+  var dv = new DataView(ab);
+  var p = 0;
+  function ws(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+  function u32(v) { dv.setUint32(p, v, true); p += 4; }
+  function u16(v) { dv.setUint16(p, v, true); p += 2; }
+  ws('RIFF'); u32(36 + dataSize); ws('WAVE');
+  ws('fmt '); u32(16); u16(1); u16(numCh); u32(sr); u32(sr * blockAlign); u16(blockAlign); u16(16);
+  ws('data'); u32(dataSize);
+  // Interleave + convert float32 → int16
+  var chans = [];
+  for (var c = 0; c < numCh; c++) chans.push(buffer.getChannelData(c));
+  for (var i = 0; i < len; i++) {
+    for (var c2 = 0; c2 < numCh; c2++) {
+      var s = Math.max(-1, Math.min(1, chans[c2][i]));
+      dv.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      p += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+// Render one full 128s composition cycle offline. Returns a Promise<Blob>.
+// Render the full composition offline for background playback.
+// KEY IMPROVEMENTS:
+// - Renders orchestra + (optionally) binaural + Solfeggio bands, matching
+//   whatever the live app has active, so BG audio == what you hear live.
+// - Crossfade loop: renders an extra TAIL beyond the 128s cycle, then the
+//   WAV encoder folds that tail back over the head. Sustained tones and
+//   reverb decay blend seamlessly instead of clicking at the loop point.
+function renderCompositionOffline(onProgress) {
+  return new Promise(function(resolve, reject) {
+    var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OfflineCtx) { reject(new Error('OfflineAudioContext unsupported')); return; }
+    var sr = 44100;
+    var XFADE = 4.0;  // seconds of crossfade at the loop seam
+    var LOOP_CYCLES = 2; // bake 2 full cycles: interior 128s boundary is a TRUE
+                         // continuation (reverb flows across), so the only
+                         // processed seam occurs once per 256s.
+    var loopSec = COMP_CYCLE_LEN * LOOP_CYCLES;
+    var renderSec = loopSec + XFADE; // extra tail (start of cycle 3) to fold back
+    var totalLen = Math.ceil(renderSec * sr);
+    var octx;
+    try {
+      octx = new OfflineCtx(2, totalLen, sr);
+    } catch (e) { reject(e); return; }
+    
+    // Master chain (same limiter as live)
+    var mg = octx.createGain();
+    mg.gain.value = 0.9;
+    var comp = octx.createDynamicsCompressor();
+    comp.threshold.value = -1; comp.knee.value = 8; comp.ratio.value = 4;
+    comp.attack.value = 0.015; comp.release.value = 0.25;
+    mg.connect(comp); comp.connect(octx.destination);
+    
+    // ---- Orchestra layer ----
+    var reverb = buildReverb(octx);
+    var orchVolEl = document.getElementById('orchVol');
+    var orchGainVal = orchVolEl ? (parseInt(orchVolEl.value, 10) || 100) / 100 : 1.0;
+    var orchOut = octx.createGain();
+    orchOut.gain.value = orchGainVal * 2.0;
+    reverb.output.connect(orchOut);
+    orchOut.connect(mg);
+    var filt = octx.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 20000; filt.Q.value = 0.7;
+    filt.connect(reverb.input);
+    var vcs = INSTRUMENTS.map(function(instr) {
+      return createVoice(octx, instr, filt, 0.02);
+    });
+    // Schedule LOOP_CYCLES+1 cycles: the final one provides the natural
+    // tail material that gets crossfaded back over the head.
+    for (var ck = 0; ck <= LOOP_CYCLES; ck++) {
+      scheduleCycleFor(octx, 0.05 + ck * COMP_CYCLE_LEN, vcs, filt);
+    }
+    
+    // ---- Binaural layer — reproduce the LIVE channel structure exactly:
+    //      pink noise → bandpass(freq) → lowshelf → gain, panned L/R.
+    //      Using the same builder path guarantees BG sounds like live, and
+    //      the level matches (was previously a too-loud raw sine).
+    try {
+      var lf = +document.getElementById('leftFreq').value;
+      var rf = +document.getElementById('rightFreq').value;
+      var binPink = makePinkBuffer(octx, 13);
+      var binOut = octx.createGain();
+      binOut.gain.value = 0.28; // background layer — keep under orchestra
+      binOut.connect(mg);
+      var lch = buildChannel(octx, binPink, lf, -1, 0);
+      var rch = buildChannel(octx, binPink, rf, 1, 3.5);
+      lch.panner.connect(binOut);
+      rch.panner.connect(binOut);
+    } catch (e) {}
+    
+    // ---- Solfeggio bands layer (only if ALL mode is active) ----
+    // Reproduce live buildAllBands character (pink-noise bandpass per band).
+    if (allBandsMode && typeof SOL_DATA !== 'undefined') {
+      try {
+        var allOut = octx.createGain();
+        allOut.gain.value = 0.22; // ambient wash — well under orchestra
+        allOut.connect(mg);
+        var allPink = makePinkBuffer(octx, 13);
+        var bandGain = 0.55 / SOL_DATA.length;
+        SOL_DATA.forEach(function(sf, bi) {
+          var s = octx.createBufferSource();
+          s.buffer = allPink; s.loop = true;
+          s.loopStart = (bi * 1.3) % 10; s.loopEnd = allPink.duration;
+          var bp = octx.createBiquadFilter();
+          bp.type = 'bandpass'; bp.frequency.value = sf.hz; bp.Q.value = 4.0;
+          var bp2 = octx.createBiquadFilter();
+          bp2.type = 'bandpass'; bp2.frequency.value = sf.hz; bp2.Q.value = 4.0;
+          var g = octx.createGain(); g.gain.value = bandGain;
+          s.connect(bp); bp.connect(bp2); bp2.connect(g); g.connect(allOut);
+          s.start(0); s.stop(renderSec);
+        });
+      } catch (e) {}
+    }
+    
+    // ---- Ambient pads layer (音楽) — deterministic offline version of the
+    //      live startMusic (which uses setTimeout and can't run offline).
+    //      128s / 16s = exactly 8 chord segments = CHORDS cycle × 2. Loop-clean.
+    try {
+      var musicLvl = (musicSlider ? parseInt(musicSlider.value, 10) : 100) / 100 * 0.55;
+      if (musicLvl > 0.001) {
+        var mOut = octx.createGain(); mOut.gain.value = musicLvl; mOut.connect(mg);
+        var mRev = buildReverb(octx); mRev.output.connect(mOut);
+        var segDur = 16;
+        for (var ci = 0; ci * segDur < renderSec; ci++) {
+          var chord = CHORDS[ci % CHORDS.length];
+          var t0 = ci * segDur;
+          var t1 = Math.min(t0 + segDur + 4, renderSec); // 4s overlap between chords
+          chord.forEach(function(f) {
+            var o = octx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+            var g = octx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.linearRampToValueAtTime(0.11, t0 + 4);
+            g.gain.setValueAtTime(0.11, Math.max(t0 + 4, t1 - 4));
+            g.gain.linearRampToValueAtTime(0.0001, t1);
+            o.connect(g); g.connect(mRev.input);
+            o.start(t0); o.stop(t1 + 0.1);
+          });
+        }
+      }
+    } catch (e) {}
+    
+    // ---- Shore foam layer (波打ち際) — static foam bed at slider level.
+    //      buildFoam is pure audio nodes, safe in OfflineAudioContext.
+    try {
+      var shoreLvl = (shoreSlider ? parseInt(shoreSlider.value, 10) : 10) / 100 * 0.7;
+      if (shoreLvl > 0.001) {
+        var shOut = octx.createGain(); shOut.gain.value = shoreLvl; shOut.connect(mg);
+        var shPink = makePinkBuffer(octx, 11);
+        buildFoam(octx, shPink, shOut);
+      }
+    } catch (e) {}
+    
+    if (onProgress) onProgress('rendering');
+    var renderDone = function(buffer) {
+      if (onProgress) onProgress('encoding');
+      try {
+        var blob = audioBufferToWavBlobLooped(buffer, sr, loopSec, XFADE);
+        resolve(blob);
+      } catch (encErr) {
+        reject(new Error('encode: ' + (encErr && encErr.message ? encErr.message : encErr)));
+      }
+    };
+    var p = null;
+    try {
+      octx.oncomplete = function(ev) { renderDone(ev.renderedBuffer); };
+      p = octx.startRendering();
+    } catch (startErr) {
+      reject(new Error('render-start: ' + (startErr && startErr.message ? startErr.message : startErr)));
+      return;
+    }
+    if (p && typeof p.then === 'function') {
+      octx.oncomplete = null;
+      p.then(renderDone).catch(function(rErr) {
+        reject(new Error('render: ' + (rErr && rErr.message ? rErr.message : rErr)));
+      });
+    }
+    // else: callback path via oncomplete handles it
+  });
+}
+
+// Set up MediaSession metadata + lock-screen handlers
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: '\u97ff \u2014 Binaural Orchestra',
+      artist: '9\u697d\u5668 \u30fb 120 BPM \u30fb Am\u2192C\u2192A',
+      album: '128s endless loop'
+    });
+  } catch (e) {}
+  try {
+    navigator.mediaSession.setActionHandler('play', function() {
+      if (bgAudioEl) bgAudioEl.play();
+    });
+    navigator.mediaSession.setActionHandler('pause', function() {
+      if (bgAudioEl) bgAudioEl.pause();
+    });
+  } catch (e) {}
+}
+
+// Wait for media to be actually playable before calling play().
+// Safari can reject play() with NotSupportedError if called immediately
+// after setting src, before the media pipeline has probed the source.
+function playMediaWhenReady(el) {
+  return new Promise(function(resolve, reject) {
+    var done = false;
+    function cleanup() {
+      el.removeEventListener('canplaythrough', onOk);
+      el.removeEventListener('error', onErr);
+    }
+    function onOk() {
+      if (done) return; done = true; cleanup();
+      el.play().then(resolve).catch(function(e) {
+        reject(new Error('play: ' + (e && e.message ? e.message : e)));
+      });
+    }
+    function onErr() {
+      if (done) return; done = true; cleanup();
+      var c = el.error ? el.error.code : '?';
+      reject(new Error('media error code=' + c));
+    }
+    el.addEventListener('canplaythrough', onOk);
+    el.addEventListener('error', onErr);
+    // Fallback: if neither event fires in 15s, try playing anyway
+    setTimeout(function() {
+      if (done) return; done = true; cleanup();
+      el.play().then(resolve).catch(function(e) {
+        reject(new Error('timeout-play: ' + (e && e.message ? e.message : e)));
+      });
+    }, 15000);
+    try { el.load(); } catch (e) {}
+  });
+}
+
+// iOS silent-switch bypass: Web Audio in Safari is muted by the ringer
+// switch, but <audio> element playback is not. Playing a looping
+// near-silent <audio> promotes the page's audio session to "playback"
+// category, which lets Web Audio sound even with the switch on silent.
+var sessionEl = null;
+function ensureAudioSession() {
+  if (sessionEl) {
+    if (sessionEl.paused) sessionEl.play().catch(function() {});
+    return;
+  }
+  try {
+    sessionEl = document.createElement('audio');
+    sessionEl.setAttribute('playsinline', '');
+    sessionEl.loop = true;
+    sessionEl.src = SILENT_WAV;
+    sessionEl.volume = 0.01;
+    sessionEl.style.display = 'none';
+    document.body.appendChild(sessionEl);
+    sessionEl.play().catch(function() { sessionEl = null; });
+  } catch (e) { sessionEl = null; }
+}
+function releaseAudioSession() {
+  if (sessionEl) { try { sessionEl.pause(); } catch (e) {} }
+}
+
+// Quick capability probe: attempt to load the tiny silent WAV. If this
+// environment's CSP blocks data:/blob: media sources (e.g. some in-app
+// viewers), we find out in <3s WITHOUT suspending live audio or rendering.
+function probeMediaSupport(el) {
+  return new Promise(function(resolve, reject) {
+    var done = false;
+    function cleanup() {
+      el.removeEventListener('canplaythrough', onOk);
+      el.removeEventListener('error', onErr);
+    }
+    function onOk() { if (done) return; done = true; cleanup(); resolve(); }
+    function onErr() {
+      if (done) return; done = true; cleanup();
+      reject(new Error('probe: media blocked (code=' + (el.error ? el.error.code : '?') + ')'));
+    }
+    el.addEventListener('canplaythrough', onOk);
+    el.addEventListener('error', onErr);
+    setTimeout(function() {
+      if (done) return; done = true; cleanup();
+      reject(new Error('probe: timeout'));
+    }, 3000);
+    el.loop = false;
+    el.src = SILENT_WAV;
+    try { el.load(); } catch (e) {}
+  });
+}
+
+// Settings snapshot for BG dirty-detection: if any of these change while
+// BG is playing, the baked audio no longer matches the UI.
+function bgCurrentSnapshot(){
+  return [orchestraMode?1:0, allBandsMode?1:0,
+          leftSlider.value, rightSlider.value,
+          orchSlider.value, musicSlider.value, shoreSlider.value].join('|');
+}
+function checkBgDirty(){
+  if(!bgActive||!bgSnapshot)return;
+  var btn=document.getElementById('bgModeBtn');
+  var status=document.getElementById('bgStatus');
+  if(bgCurrentSnapshot()!==bgSnapshot){
+    if(btn)btn.innerHTML='&#128260; \u66f4\u65b0\u3057\u3066\u518d\u751f';
+    if(status)status.textContent='\u8a2d\u5b9a\u304c\u5909\u308f\u308a\u307e\u3057\u305f \u2014 \u30bf\u30c3\u30d7\u3067\u518d\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0';
+  }
+}
+
+// Toggle background playback mode
+function toggleBgMode() {
+  var btn = document.getElementById('bgModeBtn');
+  var status = document.getElementById('bgStatus');
+  
+  if (bgActive) {
+    // If settings changed since the last render, this tap means
+    // "re-render with new settings": turn off, then immediately restart.
+    var wantsRerender = bgSnapshot && bgCurrentSnapshot() !== bgSnapshot;
+    // Turn OFF: stop bg audio, revoke URL, resume live context if playing
+    if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} bgAudioEl.src = ''; }
+    if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
+    bgActive = false;
+    bgSnapshot = null;
+    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#128251; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u518d\u751f'; }
+    if (status) status.textContent = '';
+    if (wantsRerender) { toggleBgMode(); return; }
+    if (audioCtx && playing && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+    }
+    return;
+  }
+  
+  if (bgRendering) return; // ignore double-tap during render
+  bgRendering = true;
+  
+  // 1. Create element + play silent WAV within this user gesture — secures
+  //    iOS media playback permission AND acts as a capability probe.
+  if (!bgAudioEl) {
+    bgAudioEl = document.createElement('audio');
+    bgAudioEl.setAttribute('playsinline', '');
+    bgAudioEl.style.display = 'none';
+    document.body.appendChild(bgAudioEl);
+  }
+  bgAudioEl.play().catch(function() {});
+  
+  if (status) status.textContent = '\u78ba\u8a8d\u4e2d...'; // 確認中...
+  if (btn) btn.disabled = true;
+  
+  // 2. PROBE FIRST — if this viewer blocks data:/blob: media (CSP), fail fast
+  //    withOUT suspending live audio or wasting a 10s render.
+  var probeP = mediaProbeOk ? Promise.resolve() : probeMediaSupport(bgAudioEl);
+  probeP.then(function() {
+    mediaProbeOk = true;
+    // Probe OK — this environment can play media. Proceed with full render.
+    bgAudioEl.play().catch(function() {}); // silent wav: keep gesture chain warm
+    if (status) status.textContent = '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...';
+    
+    // 3. Suspend live Web Audio (avoid double sound)
+    if (audioCtx && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(function() {});
+    }
+    
+    // 4. Render offline, then swap in the real audio
+    return renderCompositionOffline(function(phase) {
+      if (status) {
+        status.textContent = phase === 'rendering' ? '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...' : '\u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d...';
+      }
+    });
+  }, function(probeErr) {
+    // Probe failed — this viewer cannot play generated audio at all.
+    // Show clear guidance instead of a cryptic error. Live audio untouched.
+    bgRendering = false;
+    if (btn) { btn.disabled = false; }
+    if (status) status.textContent = '\u3053\u306e\u30d3\u30e5\u30fc\u30a2\u3067\u306fBG\u518d\u751f\u4e0d\u53ef\u3002\u30d5\u30a1\u30a4\u30eb\u3092\u4fdd\u5b58\u3057Safari\u3067\u958b\u304f\u3068\u5229\u7528\u3067\u304d\u307e\u3059';
+    throw { handled: true };
+  }).then(function(blob) {
+    if (!blob) return; // probe-failure path already handled
+    // Try blob: URL first; if the webview rejects it, fall back to data: URI
+    // (some in-app browsers block blob URLs for media elements).
+    return new Promise(function(resolve, reject) {
+      var volEl = document.getElementById('volume');
+      var vol = volEl ? Math.min(1, (parseInt(volEl.value, 10) || 100) / 100) : 0.5;
+      
+      function tryDataUri() {
+        if (status) status.textContent = '\u5909\u63db\u4e2d...'; // 変換中...
+        var fr = new FileReader();
+        fr.onload = function() {
+          bgAudioEl.loop = true;
+          bgAudioEl.src = fr.result; // data:audio/wav;base64,...
+          bgAudioEl.volume = vol;
+          playMediaWhenReady(bgAudioEl).then(resolve).catch(function(e2) {
+            reject(new Error('dataURI: ' + (e2 && e2.message ? e2.message : e2)));
+          });
+        };
+        fr.onerror = function() { reject(new Error('FileReader failed')); };
+        fr.readAsDataURL(blob);
+      }
+      
+      try {
+        bgBlobUrl = URL.createObjectURL(blob);
+        bgAudioEl.loop = true;
+        bgAudioEl.src = bgBlobUrl;
+        bgAudioEl.volume = vol;
+        playMediaWhenReady(bgAudioEl).then(resolve).catch(function() {
+          // blob URL rejected — fall back to data URI
+          try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {}
+          bgBlobUrl = null;
+          tryDataUri();
+        });
+      } catch (blobErr) {
+        tryDataUri();
+      }
+    });
+  }).then(function() {
+    setupMediaSession();
+    bgActive = true;
+    bgRendering = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.add('bg-on');
+      btn.innerHTML = '&#9209; \u30d0\u30c3\u30af\u30b0\u30e9\u30a6\u30f3\u30c9\u505c\u6b62';
+    }
+    bgSnapshot = bgCurrentSnapshot();
+    if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 256s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
+  }).catch(function(err) {
+    if (err && err.handled) return; // probe-failure already messaged
+    bgRendering = false;
+    if (btn) { btn.disabled = false; }
+    if (status) status.textContent = 'BG\u5931\u6557: ' + (err && err.message ? err.message : err);
+    // CRITICAL: recover live playback — we suspended audioCtx before rendering.
+    // Without this, failure leaves the app silent.
+    if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} }
+    if (audioCtx && playing && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+    }
+  });
+}
+
+// =============================================================================
+// COMPOSITION START/STOP — polling-based for mobile robustness
+// =============================================================================
+
+function startComposition(ctx) {
+  compStartT = ctx.currentTime + 0.5;
+  var cyclesScheduled = 0;
+  function topUp() {
+    if (!orchestraMode || !audioCtx) return;
+    if (bgActive || bgRendering) return; // BG mode owns playback — don't resume live ctx
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+      return;
+    }
+    var elapsed = ctx.currentTime - compStartT;
+    var currentCycleIdx = Math.max(0, Math.floor(elapsed / COMP_CYCLE_LEN));
+    while (cyclesScheduled < currentCycleIdx + 3) {
+      scheduleCycle(ctx, compStartT + cyclesScheduled * COMP_CYCLE_LEN);
+      cyclesScheduled++;
+    }
+  }
+  topUp();
+  compCycleTimer = setInterval(topUp, 20000);
+}
+
+function stopComposition() {
+  if (compCycleTimer) { clearInterval(compCycleTimer); compCycleTimer = null; }
+}
+
+// ============================================================================
+// ORCHESTRA — START / STOP
+// ============================================================================
+
+function startOrchestra(ctx, outGain) {
+  var reverb = buildReverb(ctx); reverb.output.connect(outGain);
+  orchestraFilter = ctx.createBiquadFilter();
+  orchestraFilter.type = 'lowpass';
+  orchestraFilter.frequency.value = 20000;
+  orchestraFilter.Q.value = 0.7;
+  orchestraFilter.connect(reverb.input);
+  // Create one persistent voice per instrument — all start at silence,
+  // never stopped until stopOrchestra() runs. Phase continuity preserved.
+  var t0 = ctx.currentTime + 0.3;
+  voices = INSTRUMENTS.map(function(instr) {
+    return createVoice(ctx, instr, orchestraFilter, t0);
+  });
+  if (shoreSchedulerTimer) {
+    clearTimeout(shoreSchedulerTimer);
+    shoreSchedulerTimer = null;
+    shoreOrchPaused = true;
+  }
+  startComposition(ctx);
+}
+
+function stopOrchestra() {
+  // Stop persistent voices — each has an oscillator (and possibly vibOsc,
+  // fmOsc, alfo) that needs to be terminated to free audio resources.
+  voices.forEach(function(v) {
+    if (!v) return;
+    try { v.osc.stop(); } catch(e) {}
+    if (v.vibOsc) try { v.vibOsc.stop(); } catch(e) {}
+    if (v.fmOsc) try { v.fmOsc.stop(); } catch(e) {}
+    if (v.alfo) try { v.alfo.stop(); } catch(e) {}
+  });
+  voices = [];
+  // Also stop any tracked oscillators (in case any remain from older code)
+  orchestraOscs.forEach(function(o) { try { o.stop(); } catch(e) {} });
+  orchestraOscs = [];
+  orchestraTimers.forEach(function(t) { clearTimeout(t); });
+  orchestraTimers = [];
+  stopComposition();
+  if (orchestraFilter) { try { orchestraFilter.disconnect(); } catch(e) {} orchestraFilter = null; }
+  // Resume random shore scheduling
+  if (shoreOrchPaused && playing) {
+    shoreOrchPaused = false;
+    nextWaveTime = audioCtx.currentTime + 1.0;
+    runShoreScheduler();
+  }
+  // Clear chip dynamic highlights
+  document.querySelectorAll('.sol-chip').forEach(function(c) {
+    c.classList.remove('lead', 'support', 'silent');
+  });
+}
+
+orchBtn.addEventListener('click',function(){
+  orchestraMode=!orchestraMode;
+  orchBtn.classList.toggle('orch-active',orchestraMode);
+  orchBtn.innerHTML=orchestraMode?'&#9834; ORCH \u25cf':'&#9834; ORCH';
+  document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.toggle('orch-on',orchestraMode);});
+  if(!playing)return;
+  if(orchestraMode){
+    orchGainNode=audioCtx.createGain();
+    orchGainNode.gain.value=+orchSlider.value/100*0.6;
+    orchGainNode.connect(masterGain);
+    startOrchestra(audioCtx,orchGainNode);
+  }else{
+    stopOrchestra();
+    if(orchGainNode){orchGainNode.disconnect();orchGainNode=null;}
+  }
+});
+
+// ============================================================================
+// PLAY / STOP
+// ============================================================================
+
+playBtn.addEventListener('click',function(){
+  if(!playing){
+    if(bgActive){toggleBgMode();} // BG and live are exclusive
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    // Explicit resume within the user gesture — iOS Safari can create the
+    // context in 'suspended' state (no statechange fires in that case).
+    if(audioCtx.state==='suspended'){audioCtx.resume().catch(function(){});}
+    // Promote audio session so the mute switch doesn't silence Web Audio
+    ensureAudioSession();
+    // First START: auto-enable ORCH + ALL so the full preferred soundscape
+    // (orchestra + all solfeggio bands + binaural) plays with one tap.
+    if(!autoModesApplied){
+      autoModesApplied=true;
+      if(!allBandsMode){
+        allBandsMode=true;
+        allBandsBtn.classList.add('all-active');
+        allBandsBtn.innerHTML='&#9711; ALL \u25cf';
+        document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.add('active');});
+      }
+      if(!orchestraMode){
+        orchestraMode=true;
+        orchBtn.classList.add('orch-active');
+        orchBtn.innerHTML='&#9834; ORCH \u25cf';
+        document.querySelectorAll('.sol-chip').forEach(function(c){c.classList.add('orch-on');});
+      }
+    }
+    audioCtx.onstatechange=function(){
+      if(audioCtx&&audioCtx.state==='suspended'&&playing){
+        audioCtx.resume().catch(function(){});
+      }
+    };
+    masterGain=audioCtx.createGain();
+    masterGain.gain.value=+volSlider.value/100;
+    // Soft limiter — gentle settings to avoid audible pumping.
+    // Threshold raised to -1dB, ratio reduced to 4, attack 15ms (less click-catching),
+    // release 250ms (smoother recovery, less breathing artifact).
+    masterLimiter=audioCtx.createDynamicsCompressor();
+    masterLimiter.threshold.value=-1;
+    masterLimiter.knee.value=8;
+    masterLimiter.ratio.value=4;
+    masterLimiter.attack.value=0.015;
+    masterLimiter.release.value=0.25;
+    masterGain.connect(masterLimiter);
+    masterLimiter.connect(audioCtx.destination);
+
+    var biBuf=makePinkBuffer(audioCtx,11);
+    shorePinkBuf=makePinkBuffer(audioCtx,11);
+    var lf=+leftSlider.value, rf=+rightSlider.value;
+
+    if(allBandsMode){
+      allBandsObj=buildAllBands(audioCtx,masterGain);
+    }else{
+      channels=[buildChannel(audioCtx,biBuf,lf,-1,0),buildChannel(audioCtx,biBuf,rf,1,3.5)];
+      channels[0].panner.connect(masterGain);
+      channels[1].panner.connect(masterGain);
+    }
+
+    shoreGainNode=audioCtx.createGain();
+    shoreGainNode.gain.value=+shoreSlider.value/100*0.7;
+    shoreGainNode.connect(masterGain);
+    shoreStatic=buildFoam(audioCtx,biBuf,shoreGainNode);
+    nextWaveTime=audioCtx.currentTime+1.2;
+    runShoreScheduler();
+
+    musicGainNode=audioCtx.createGain();
+    musicGainNode.gain.value=+musicSlider.value/100*0.55;
+    musicGainNode.connect(masterGain);
+    startMusic(audioCtx,musicGainNode);
+
+    if(orchestraMode){
+      orchGainNode=audioCtx.createGain();
+      orchGainNode.gain.value=+orchSlider.value/100*0.6;
+      orchGainNode.connect(masterGain);
+      startOrchestra(audioCtx,orchGainNode);
+    }
+
+    playing=true;
+    playBtn.textContent='\u25A0  STOP';
+    playBtn.classList.add('playing');
+  }else{
+    clearTimeout(shoreSchedulerTimer); shoreSchedulerTimer=null;
+    stopMusic(); stopAllBands(); stopOrchestra();
+    channels.forEach(function(ch){
+      try{ch.src.stop();}catch(e){}
+      ch.lfos.forEach(function(l){try{l.stop();}catch(e){}});
+      if(ch.woscs)ch.woscs.forEach(function(o){try{o.stop();}catch(e){}});
+    });
+    channels=[];
+    if(shoreStatic){try{shoreStatic.src.stop();shoreStatic.lfo.stop();}catch(e){}shoreStatic=null;}
+    shorePinkBuf=null; shoreGainNode=null; musicGainNode=null;
+    if(orchGainNode){orchGainNode.disconnect();orchGainNode=null;}
+    if(masterLimiter){try{masterLimiter.disconnect();}catch(e){}masterLimiter=null;}
+    audioCtx.close(); audioCtx=null; masterGain=null;
+    releaseAudioSession();
+    playing=false;
+    if(bgActive){toggleBgMode();} // stopping live also stops BG
+    playBtn.textContent='\u25B6  START';
+    playBtn.classList.remove('playing');
+  }
+});
+
+})();
+</script>
+</body>
+</html>
