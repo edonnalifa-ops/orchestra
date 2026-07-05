@@ -166,7 +166,7 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v23.2</span></h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
     <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
@@ -216,7 +216,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v23.2 web &middot; 波形BG対応 &middot; セクション連動振幅&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24 web &middot; IndexedDBキャッシュ &middot; ギャップレスループ&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -574,6 +574,25 @@ function activateSol(sf,chipEl){
   });
   var bgBtn=document.getElementById('bgModeBtn');
   if(bgBtn)bgBtn.addEventListener('click',toggleBgMode);
+  // On load, warm the cache in the background: if we've rendered the DEFAULT
+  // configuration before, it's already in IndexedDB and the first BG tap is
+  // instant. If not, quietly pre-render it during idle time so that the
+  // first tap only needs playback, not a 20s wait. (No audio is played here —
+  // this only fills the cache.)
+  function idlePrewarm(){
+    if(!window.indexedDB||!(window.OfflineAudioContext||window.webkitOfflineAudioContext))return;
+    var key='v24|'+bgCurrentSnapshot();
+    idbGet(key).then(function(cached){
+      if(cached)return; // already cached — nothing to do
+      // Render silently and store. Wrapped so any failure is harmless.
+      renderCompositionOffline(function(){}).then(function(blob){
+        idbSet(key,blob).catch(function(){});
+      }).catch(function(){});
+    }).catch(function(){});
+  }
+  // Defer to idle so it never blocks first paint or interaction.
+  if('requestIdleCallback' in window){requestIdleCallback(idlePrewarm,{timeout:8000});}
+  else{setTimeout(idlePrewarm,4000);}
   [leftSlider,rightSlider,orchSlider,musicSlider,shoreSlider].forEach(function(s){
     if(s)s.addEventListener('input',checkBgDirty);
   });
@@ -1474,6 +1493,60 @@ function releaseAudioSession() {
   if (sessionEl) { try { sessionEl.pause(); } catch (e) {} }
 }
 
+// =============================================================================
+// IndexedDB cache for rendered WAV blobs — avoids re-rendering (20s) every
+// time. Keyed by the settings snapshot, so a given configuration renders once
+// and is instantly restored on later sessions.
+// =============================================================================
+var IDB_NAME = 'orchestraBG', IDB_STORE = 'renders', IDB_VER = 1;
+function idbOpen() {
+  return new Promise(function(resolve, reject) {
+    if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+    var req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = function() {
+      var db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error || new Error('idb open failed')); };
+  });
+}
+function idbGet(key) {
+  return idbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readonly');
+      var r = tx.objectStore(IDB_STORE).get(key);
+      r.onsuccess = function() { resolve(r.result || null); };
+      r.onerror = function() { reject(r.error); };
+    });
+  });
+}
+function idbSet(key, blob) {
+  return idbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readwrite');
+      var store = tx.objectStore(IDB_STORE);
+      // Keep only the most recent render to bound storage: clear then put.
+      store.clear();
+      var r = store.put(blob, key);
+      tx.oncomplete = function() { resolve(true); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  });
+}
+// Cache key from the full settings snapshot + app version.
+function bgCacheKey() {
+  return 'v24|' + bgCurrentSnapshot();
+}
+
+// Gapless-loop state: two <audio> elements ping-pong so there is NO gap at
+// the loop seam (the native `loop` attribute leaves ~0.5s on iOS).
+var bgEls = [null, null];   // the two audio elements
+var bgCur = 0;              // index of the element currently playing
+var bgSrcUrl = null;        // shared source (blob or data URI)
+var bgLoopTimer = null;     // schedules the ping-pong handoff
+var LOOP_LEN_SEC = 256;     // must match render loopSec (2 * 128)
+
 // Quick capability probe: attempt to load the tiny silent WAV. If this
 // environment's CSP blocks data:/blob: media sources (e.g. some in-app
 // viewers), we find out in <3s WITHOUT suspending live audio or rendering.
@@ -1518,6 +1591,86 @@ function checkBgDirty(){
   }
 }
 
+// Start gapless looping playback of a source URL using two ping-ponging
+// <audio> elements. When the playing element nears the end, the other is
+// started so the seam has no gap. Returns a Promise resolving once playing.
+function startGaplessLoop(srcUrl, vol) {
+  return new Promise(function(resolve, reject) {
+    // Create the two elements once
+    for (var i = 0; i < 2; i++) {
+      if (!bgEls[i]) {
+        var a = document.createElement('audio');
+        a.setAttribute('playsinline', '');
+        a.style.display = 'none';
+        a.preload = 'auto';
+        document.body.appendChild(a);
+        bgEls[i] = a;
+      }
+      bgEls[i].loop = false;           // we handle looping manually
+      bgEls[i].src = srcUrl;
+      bgEls[i].volume = vol;
+      try { bgEls[i].load(); } catch (e) {}
+    }
+    bgCur = 0;
+    // Keep a pointer so the rest of the app (waveform/MediaSession) can read
+    // the active element's currentTime.
+    bgAudioEl = bgEls[0];
+    
+    function scheduleHandoff() {
+      if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
+      var playingEl = bgEls[bgCur];
+      // Poll until we know duration, then arm a timer to fire ~0.25s before end
+      function arm() {
+        var dur = playingEl.duration;
+        if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
+        var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
+        bgLoopTimer = setTimeout(function() {
+          var nextIdx = 1 - bgCur;
+          var nextEl = bgEls[nextIdx];
+          var baseVol = playingEl.volume;
+          try {
+            nextEl.currentTime = 0;
+            nextEl.volume = 0; // fade in to avoid a doubled seam
+            var pp = nextEl.play();
+            if (pp && pp.catch) pp.catch(function() {});
+          } catch (e) {}
+          // Short equal-ish crossfade over the ~0.28s overlap
+          var steps = 8, i = 0;
+          var xf = setInterval(function() {
+            i++;
+            var t = i / steps;
+            try {
+              nextEl.volume = Math.min(1, baseVol * t);
+              playingEl.volume = Math.max(0, baseVol * (1 - t));
+            } catch (e) {}
+            if (i >= steps) {
+              clearInterval(xf);
+              try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
+            }
+          }, 32);
+          // Hand over pointer immediately so timeline/waveform follow the new one
+          bgCur = nextIdx;
+          bgAudioEl = nextEl;
+          scheduleHandoff();
+        }, remainingMs);
+      }
+      arm();
+    }
+    
+    playMediaWhenReady(bgEls[0]).then(function() {
+      scheduleHandoff();
+      resolve();
+    }).catch(reject);
+  });
+}
+
+function stopGaplessLoop() {
+  if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
+  bgEls.forEach(function(a) {
+    if (a) { try { a.pause(); } catch (e) {} }
+  });
+}
+
 // Toggle background playback mode
 function toggleBgMode() {
   var btn = document.getElementById('bgModeBtn');
@@ -1527,8 +1680,8 @@ function toggleBgMode() {
     // If settings changed since the last render, this tap means
     // "re-render with new settings": turn off, then immediately restart.
     var wantsRerender = bgSnapshot && bgCurrentSnapshot() !== bgSnapshot;
-    // Turn OFF: stop bg audio, revoke URL, resume live context if playing
-    if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} bgAudioEl.src = ''; }
+    // Turn OFF: stop gapless loop, revoke URL, resume live context if playing
+    stopGaplessLoop();
     if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
     bgActive = false;
     bgSnapshot = null;
@@ -1562,20 +1715,31 @@ function toggleBgMode() {
   var probeP = mediaProbeOk ? Promise.resolve() : probeMediaSupport(bgAudioEl);
   probeP.then(function() {
     mediaProbeOk = true;
-    // Probe OK — this environment can play media. Proceed with full render.
+    // Probe OK — this environment can play media.
     bgAudioEl.play().catch(function() {}); // silent wav: keep gesture chain warm
-    if (status) status.textContent = '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...';
     
     // 3. Suspend live Web Audio (avoid double sound)
     if (audioCtx && audioCtx.state === 'running') {
       audioCtx.suspend().catch(function() {});
     }
     
-    // 4. Render offline, then swap in the real audio
-    return renderCompositionOffline(function(phase) {
-      if (status) {
-        status.textContent = phase === 'rendering' ? '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...' : '\u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d...';
+    // 4. CACHE CHECK — reuse a previously rendered WAV for this exact config
+    //    (instant) instead of re-rendering (~20s).
+    var cacheKey = bgCacheKey();
+    if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u78ba\u8a8d\u4e2d...';
+    return idbGet(cacheKey).catch(function() { return null; }).then(function(cached) {
+      if (cached) {
+        if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u304b\u3089\u5373\u518d\u751f';
+        return cached;
       }
+      return renderCompositionOffline(function(phase) {
+        if (status) {
+          status.textContent = phase === 'rendering' ? '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...' : '\u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d...';
+        }
+      }).then(function(blob) {
+        idbSet(cacheKey, blob).catch(function() {});
+        return blob;
+      });
     });
   }, function(probeErr) {
     // Probe failed — this viewer cannot play generated audio at all.
@@ -1586,20 +1750,18 @@ function toggleBgMode() {
     throw { handled: true };
   }).then(function(blob) {
     if (!blob) return; // probe-failure path already handled
-    // Try blob: URL first; if the webview rejects it, fall back to data: URI
-    // (some in-app browsers block blob URLs for media elements).
+    // Play via gapless double-buffer (eliminates the ~0.5s seam gap that the
+    // native loop attribute produces on iOS).
     return new Promise(function(resolve, reject) {
       var volEl = document.getElementById('volume');
       var vol = volEl ? Math.min(1, (parseInt(volEl.value, 10) || 100) / 100) : 0.5;
       
       function tryDataUri() {
-        if (status) status.textContent = '\u5909\u63db\u4e2d...'; // 変換中...
+        if (status) status.textContent = '\u5909\u63db\u4e2d...';
         var fr = new FileReader();
         fr.onload = function() {
-          bgAudioEl.loop = true;
-          bgAudioEl.src = fr.result; // data:audio/wav;base64,...
-          bgAudioEl.volume = vol;
-          playMediaWhenReady(bgAudioEl).then(resolve).catch(function(e2) {
+          bgSrcUrl = fr.result;
+          startGaplessLoop(bgSrcUrl, vol).then(resolve).catch(function(e2) {
             reject(new Error('dataURI: ' + (e2 && e2.message ? e2.message : e2)));
           });
         };
@@ -1609,11 +1771,8 @@ function toggleBgMode() {
       
       try {
         bgBlobUrl = URL.createObjectURL(blob);
-        bgAudioEl.loop = true;
-        bgAudioEl.src = bgBlobUrl;
-        bgAudioEl.volume = vol;
-        playMediaWhenReady(bgAudioEl).then(resolve).catch(function() {
-          // blob URL rejected — fall back to data URI
+        bgSrcUrl = bgBlobUrl;
+        startGaplessLoop(bgSrcUrl, vol).then(resolve).catch(function() {
           try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {}
           bgBlobUrl = null;
           tryDataUri();
