@@ -166,7 +166,7 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24</span></h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.1</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
     <button class="play-btn" id="playBtn">&#9654; &nbsp; START</button>
@@ -216,7 +216,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24 web &middot; IndexedDBキャッシュ &middot; ギャップレスループ&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.1 web &middot; ギャップレス再生修正&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1596,30 +1596,50 @@ function checkBgDirty(){
 // started so the seam has no gap. Returns a Promise resolving once playing.
 function startGaplessLoop(srcUrl, vol) {
   return new Promise(function(resolve, reject) {
-    // Create the two elements once
-    for (var i = 0; i < 2; i++) {
-      if (!bgEls[i]) {
+    // Element 0 = the ALREADY gesture-authorized bgAudioEl (it played the
+    // silent probe WAV inside the user's tap, so iOS lets it play sound).
+    // Reusing it is essential — a freshly created element has no play
+    // permission and would be blocked on iOS.
+    if (!bgAudioEl) {
+      bgAudioEl = document.createElement('audio');
+      bgAudioEl.setAttribute('playsinline', '');
+      bgAudioEl.style.display = 'none';
+      document.body.appendChild(bgAudioEl);
+    }
+    bgEls[0] = bgAudioEl;
+    bgEls[0].loop = false;
+    bgEls[0].volume = vol;
+    bgEls[0].src = srcUrl;
+    try { bgEls[0].load(); } catch (e) {}
+    bgCur = 0;
+    
+    // Play element 0 first. Only AFTER it is confirmed playing do we prepare
+    // element 1 — loading both against the same source simultaneously can make
+    // iOS block playback.
+    playMediaWhenReady(bgEls[0]).then(function() {
+      // Prepare the second element now (deferred to avoid simultaneous load)
+      if (!bgEls[1]) {
         var a = document.createElement('audio');
         a.setAttribute('playsinline', '');
         a.style.display = 'none';
         a.preload = 'auto';
         document.body.appendChild(a);
-        bgEls[i] = a;
+        bgEls[1] = a;
       }
-      bgEls[i].loop = false;           // we handle looping manually
-      bgEls[i].src = srcUrl;
-      bgEls[i].volume = vol;
-      try { bgEls[i].load(); } catch (e) {}
-    }
-    bgCur = 0;
-    // Keep a pointer so the rest of the app (waveform/MediaSession) can read
-    // the active element's currentTime.
-    bgAudioEl = bgEls[0];
+      setTimeout(function() {
+        bgEls[1].loop = false;
+        bgEls[1].volume = vol;
+        bgEls[1].src = srcUrl;
+        try { bgEls[1].load(); } catch (e) {}
+      }, 500);
+      scheduleHandoff();
+      resolve();
+    }).catch(reject);
     
     function scheduleHandoff() {
       if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
       var playingEl = bgEls[bgCur];
-      // Poll until we know duration, then arm a timer to fire ~0.25s before end
+      // Poll until we know duration, then arm a timer to fire ~0.28s before end
       function arm() {
         var dur = playingEl.duration;
         if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
@@ -1627,6 +1647,7 @@ function startGaplessLoop(srcUrl, vol) {
         bgLoopTimer = setTimeout(function() {
           var nextIdx = 1 - bgCur;
           var nextEl = bgEls[nextIdx];
+          if (!nextEl) { scheduleHandoff(); return; } // second not ready yet
           var baseVol = playingEl.volume;
           try {
             nextEl.currentTime = 0;
@@ -1634,7 +1655,7 @@ function startGaplessLoop(srcUrl, vol) {
             var pp = nextEl.play();
             if (pp && pp.catch) pp.catch(function() {});
           } catch (e) {}
-          // Short equal-ish crossfade over the ~0.28s overlap
+          // Short crossfade over the ~0.28s overlap
           var steps = 8, i = 0;
           var xf = setInterval(function() {
             i++;
@@ -1648,7 +1669,6 @@ function startGaplessLoop(srcUrl, vol) {
               try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
             }
           }, 32);
-          // Hand over pointer immediately so timeline/waveform follow the new one
           bgCur = nextIdx;
           bgAudioEl = nextEl;
           scheduleHandoff();
@@ -1656,11 +1676,6 @@ function startGaplessLoop(srcUrl, vol) {
       }
       arm();
     }
-    
-    playMediaWhenReady(bgEls[0]).then(function() {
-      scheduleHandoff();
-      resolve();
-    }).catch(reject);
   });
 }
 
