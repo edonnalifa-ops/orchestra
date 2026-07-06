@@ -141,10 +141,8 @@
     background:linear-gradient(90deg,transparent,rgba(156,127,201,0.07),transparent);
     animation:sweep 2s linear infinite;}
   @keyframes sweep{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
-  .play-row{display:flex;gap:8px;}
-  .play-row .play-btn{flex:1;}
-  .bg-btn2{color:var(--muted);}
-  .bg-btn2.bg-on{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(212,175,55,0.06);}
+  .bg-main.bg-on{border-color:var(--accent-orch);color:var(--accent-orch);background:rgba(212,175,55,0.08);}
+  .bg-main:disabled{opacity:0.6;cursor:wait;}
   .bg-btn{width:100%;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;
     background:var(--bg);color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;
     letter-spacing:0.08em;cursor:pointer;transition:all 0.3s;-webkit-tap-highlight-color:transparent;}
@@ -170,13 +168,11 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.3</span></h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.4</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
-    <div class="play-row">
-      <button class="play-btn" id="playBtn">&#9654; &#20877;&#29983;</button>
-      <button class="play-btn bg-btn2" id="bgModeBtn">&#128251; BG&#20877;&#29983;</button>
-    </div>
+    <button class="play-btn bg-main" id="bgModeBtn">&#9654; &nbsp; &#20877;&#29983;</button>
+    <button id="playBtn" style="display:none;"></button>
     <div class="mode-row">
       <button id="allBandsBtn" class="mode-btn all-active">&#9711; ALL &#9679;</button>
       <button id="orchBtn" class="mode-btn orch-active">&#9834; ORCH &#9679;</button>
@@ -222,7 +218,7 @@
   <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.3 web &middot; 再生+BG同サイズ横並び&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.4 web &middot; 単一再生ボタン(BG)&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -1592,7 +1588,7 @@ function checkBgDirty(){
   var btn=document.getElementById('bgModeBtn');
   var status=document.getElementById('bgStatus');
   if(bgCurrentSnapshot()!==bgSnapshot){
-    if(btn)btn.innerHTML='&#128260; \u66f4\u65b0';
+    if(btn)btn.innerHTML='&#128260;&nbsp; \u66f4\u65b0\u3057\u3066\u518d\u751f';
     if(status)status.textContent='\u8a2d\u5b9a\u304c\u5909\u308f\u308a\u307e\u3057\u305f \u2014 \u30bf\u30c3\u30d7\u3067\u518d\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0';
   }
 }
@@ -1706,7 +1702,7 @@ function toggleBgMode() {
     if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
     bgActive = false;
     bgSnapshot = null;
-    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#128251; BG\u518d\u751f'; }
+    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#9654;&nbsp; \u518d\u751f'; }
     if (status) status.textContent = '';
     if (wantsRerender) { toggleBgMode(); return; }
     if (audioCtx && playing && audioCtx.state === 'suspended') {
@@ -1727,6 +1723,10 @@ function toggleBgMode() {
     document.body.appendChild(bgAudioEl);
   }
   bgAudioEl.play().catch(function() {});
+  // Promote the page's audio session so the ringer/mute switch doesn't
+  // silence playback. Needed because BG can now be used without the
+  // (hidden) live-play button that used to call this.
+  ensureAudioSession();
   
   if (status) status.textContent = '\u78ba\u8a8d\u4e2d...'; // 確認中...
   if (btn) btn.disabled = true;
@@ -1809,7 +1809,7 @@ function toggleBgMode() {
     if (btn) {
       btn.disabled = false;
       btn.classList.add('bg-on');
-      btn.innerHTML = '&#9209; BG\u505c\u6b62';
+      btn.innerHTML = '&#9209;&nbsp; \u505c\u6b62';
     }
     bgSnapshot = bgCurrentSnapshot();
     // NOTE: We intentionally do NOT route bgAudioEl through Web Audio
