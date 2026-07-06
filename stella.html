@@ -95,11 +95,11 @@
   .mode-row .mode-btn.all-active{border-color:var(--accent-mix);color:#fff;background:rgba(156,127,201,0.28);box-shadow:0 0 12px rgba(156,127,201,0.5),inset 0 0 8px rgba(156,127,201,0.2);font-weight:600;}
   .mode-row .mode-btn.orch-active{border-color:var(--accent-orch);color:#fff;background:rgba(165,214,167,0.28);box-shadow:0 0 12px rgba(165,214,167,0.5),inset 0 0 8px rgba(165,214,167,0.2);font-weight:600;}
   .sol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-  .sol-chip{pointer-events:none;cursor:default;}
   .sol-chip{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--border);
-    border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:pointer;
+    border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:default;
     transition:border-color 0.3s,background 0.3s,opacity 0.3s;
-    user-select:none;-webkit-tap-highlight-color:transparent;width:100%;}
+    user-select:none;-webkit-tap-highlight-color:transparent;width:100%;
+    pointer-events:none;}
   .sol-chip:active{background:rgba(255,255,255,0.05);}
   .sol-chip.active{border-color:var(--accent-mix);background:rgba(156,127,201,0.10);}
   .sol-chip .s-hz{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);line-height:1;}
