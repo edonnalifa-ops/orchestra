@@ -168,9 +168,10 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.4</span></h1>
+    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.5</span></h1>
     <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
   <div class="top-controls">
+    <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
     <button class="play-btn bg-main" id="bgModeBtn">&#9654; &nbsp; &#20877;&#29983;</button>
     <button id="playBtn" style="display:none;"></button>
     <div class="mode-row">
@@ -181,8 +182,8 @@
   </div>
 
   </div>
-  <canvas id="waveCanvas"></canvas>
-  <div class="channels">
+  <canvas id="waveCanvas" style="display:none;"></canvas>
+  <div class="channels" style="display:none;">
     <div class="channel left">
       <div class="ch-label">L &middot; LEFT</div>
       <div class="freq-value" id="leftVal">100<span class="unit">Hz</span></div>
@@ -213,12 +214,11 @@
       <span class="tl-en" id="tlEn">&mdash;</span>
     </div>
   </div>
-  <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
-  <div class="vol-row shore-row"><label>&#27874;&#25171;&#12385;&#38555;</label><input type="range" id="shoreVol" min="0" max="100" value="10" step="1"><span id="shoreVal">10%</span></div>
-  <div class="vol-row music-row"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
-  <div class="vol-row orch-row"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
+  <div class="vol-row shore-row" style="display:none;"><label>&#27874;&#25171;&#12385;&#38555;</label><input type="range" id="shoreVol" min="0" max="100" value="10" step="1"><span id="shoreVal">10%</span></div>
+  <div class="vol-row music-row" style="display:none;"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
+  <div class="vol-row orch-row" style="display:none;"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.4 web &middot; 単一再生ボタン(BG)&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.5 web &middot; 波形+LR格納 &middot; VOL上部集約&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
