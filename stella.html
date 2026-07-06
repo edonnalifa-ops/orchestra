@@ -95,6 +95,7 @@
   .mode-row .mode-btn.all-active{border-color:var(--accent-mix);color:#fff;background:rgba(156,127,201,0.28);box-shadow:0 0 12px rgba(156,127,201,0.5),inset 0 0 8px rgba(156,127,201,0.2);font-weight:600;}
   .mode-row .mode-btn.orch-active{border-color:var(--accent-orch);color:#fff;background:rgba(165,214,167,0.28);box-shadow:0 0 12px rgba(165,214,167,0.5),inset 0 0 8px rgba(165,214,167,0.2);font-weight:600;}
   .sol-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .sol-chip{pointer-events:none;cursor:default;}
   .sol-chip{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--border);
     border-radius:6px;padding:6px 8px 5px;background:var(--bg);cursor:pointer;
     transition:border-color 0.3s,background 0.3s,opacity 0.3s;
@@ -168,7 +169,7 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1 style="display:none;">Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.6</span></h1>
+    <h1 style="display:none;">Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.7</span></h1>
     <div class="beat-display" id="beatHz" style="font-size:22px;">&#26143;&#31354;&#12398;&#38899;&#33394;</div>
   <div class="top-controls">
     <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
@@ -218,7 +219,7 @@
   <div class="vol-row music-row" style="display:none;"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row" style="display:none;"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note" style="display:none;">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.6 Stella_Melodys &middot; offline render &middot; MediaSession</span></p>
+  <p class="note" style="display:none;">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.7 Stella_Melodys &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -571,7 +572,7 @@ function activateSol(sf,chipEl){
 
     var instr=document.createElement('div');instr.className='s-instr';instr.textContent=sf.instr;
     chip.appendChild(hz);chip.appendChild(instr);
-    chip.addEventListener('click',function(){activateSol(sf,chip);});
+    // chips are display-only — no click handler (not manually toggleable)
     grid.appendChild(chip);
   });
   var bgBtn=document.getElementById('bgModeBtn');
