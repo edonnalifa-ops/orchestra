@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="Orchestra">
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Binaural + Solfeggio + 9-instrument generative orchestra — 128s endless loop, 120 BPM, Am→C→A major">
-<title>Orchestra v20 Final</title>
+<title>Stella_Melodys</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital@0;1&family=Noto+Sans+JP:wght@300;400&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -31,10 +31,10 @@
     background:radial-gradient(circle,rgba(240,98,146,0.04) 0%,transparent 70%);pointer-events:none;}
   .container{width:100%;max-width:520px;display:flex;flex-direction:column;gap:18px;}
 
-  .title-block{text-align:center;margin-bottom:6px;}
+  .title-block{text-align:center;margin-bottom:10px;padding-top:8px;}
   .title-block h1{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.3em;
     color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
-  .beat-display{font-family:'Space Mono',monospace;font-size:36px;color:var(--accent-mix);letter-spacing:-1px;}
+  .beat-display{font-family:'Noto Sans JP',sans-serif;font-size:22px;color:var(--accent-mix);letter-spacing:0.25em;font-weight:300;margin:8px 0 4px;}
   .beat-display span{font-size:14px;color:var(--muted);margin-left:4px;letter-spacing:0.1em;}
 
   canvas{width:100%;height:80px;border-radius:4px;background:var(--surface);
@@ -168,13 +168,13 @@
 <body>
 <div class="container">
   <div class="title-block">
-    <h1>Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.5</span></h1>
-    <div class="beat-display" id="beatHz">10<span>Hz beat</span></div>
+    <h1 style="display:none;">Binaural &middot; Solfeggio &middot; Orchestra <span class="ver-badge">v24.6</span></h1>
+    <div class="beat-display" id="beatHz" style="font-size:22px;">&#26143;&#31354;&#12398;&#38899;&#33394;</div>
   <div class="top-controls">
     <div class="vol-row"><label>VOL</label><input type="range" id="volume" min="0" max="100" value="100" step="1"><span id="volVal">100%</span></div>
     <button class="play-btn bg-main" id="bgModeBtn">&#9654; &nbsp; &#20877;&#29983;</button>
     <button id="playBtn" style="display:none;"></button>
-    <div class="mode-row">
+    <div class="mode-row" style="display:none;">
       <button id="allBandsBtn" class="mode-btn all-active">&#9711; ALL &#9679;</button>
       <button id="orchBtn" class="mode-btn orch-active">&#9834; ORCH &#9679;</button>
     </div>
@@ -203,7 +203,7 @@
     </div>
     <div class="sol-grid" id="solGrid"></div>
   </div>
-  <div class="timeline" id="timeline">
+  <div class="timeline" id="timeline" style="display:none;">
     <div class="tl-header">
       <span class="tl-label">Timeline &middot; &#26354;&#27083;&#25104;</span>
       <span class="tl-time" id="tlTime">0:00 / 8:00</span>
@@ -218,7 +218,7 @@
   <div class="vol-row music-row" style="display:none;"><label>&#38899;&#27005;</label><input type="range" id="musicVol" min="0" max="100" value="100" step="1"><span id="musicVal">100%</span></div>
   <div class="vol-row orch-row" style="display:none;"><label>&#31649;&#24359;&#27005;</label><input type="range" id="orchVol" min="0" max="100" value="100" step="1"><span id="orchVal">100%</span></div>
 
-  <p class="note">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.5 web &middot; 波形+LR格納 &middot; VOL上部集約&#20877;&#29983; &middot; offline render &middot; MediaSession</span></p>
+  <p class="note" style="display:none;">&#9834; ORCH &mdash; 9&#27005;&#22120; &times; (128s &middot; endless loop)<br>120 BPM &middot; A minor &rarr; C major &rarr; A major (Picardy)<br>Leitmotif: 8&#23567;&#31680; &times; 2&#12523;&#12540;&#12503;/&#12475;&#12463;&#12471;&#12519;&#12531; &middot; &#21508;&#35519; (Am/C/A) &#22793;&#24418;<br><span style="opacity:0.6;font-size:9px;">v24.6 Stella_Melodys &middot; offline render &middot; MediaSession</span></p>
 </div>
 <script>
 (function(){
@@ -537,7 +537,7 @@ function updateDisplay(){
   var l=+leftSlider.value, r=+rightSlider.value;
   leftVal.innerHTML=l+'<span class="unit">Hz</span>';
   rightVal.innerHTML=r+'<span class="unit">Hz</span>';
-  beatHz.innerHTML=Math.abs(l-r)+'<span>Hz beat</span>';
+  // beat display is now a static title (星空の音色) — not updated
   if(channels.length===2){
     [channels[0].bp1,channels[0].bp2].forEach(function(f){f.frequency.setTargetAtTime(l,audioCtx.currentTime,0.08);});
     [channels[1].bp1,channels[1].bp2].forEach(function(f){f.frequency.setTargetAtTime(r,audioCtx.currentTime,0.08);});
@@ -1816,7 +1816,7 @@ function toggleBgMode() {
     // (createMediaElementSource), because on iOS that can break lock-screen
     // background playback — the hard-won feature. Instead the waveform
     // animates in a time-driven "playing" style while BG is active (below).
-    if (status) status.textContent = 'BG: ORCH' + (allBandsMode ? '+ALL' : '') + '+binaural+\u97f3\u697d+\u6ce2 / 256s loop \u2014 \u753b\u9762\u30ed\u30c3\u30af\u53ef';
+    if (status) status.textContent = '';
   }).catch(function(err) {
     if (err && err.handled) return; // probe-failure already messaged
     bgRendering = false;
