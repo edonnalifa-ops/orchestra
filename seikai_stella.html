@@ -848,6 +848,15 @@ function currentSectionIndex(){
 }
 function updateMoodDisplay(){
   if(typeof COMPOSITION==='undefined'||!COMPOSITION||!COMPOSITION.length) return;
+  /* イントロ中はこの判定自体を止める。lastSoundingStateは全楽器false
+     で初期化されているため、再生開始直後にここが動くと「今まさに
+     鳴り始めた」と誤検知し、9楽器ぶんのautoTapForInstrumentが一斉に
+     予約されてしまう。その遅延(0.3〜3.2秒)がちょうどイントロの
+     境界をまたいで発火することがあり、「保護を貫通している」ように
+     見える現象の主因だった。イントロ中は判定自体を凍結し、
+     lastSoundingStateも更新しないことで、イントロ明け後の最初の
+     呼び出しで正しく現在の鳴動状態から判定を始められるようにする。 */
+  if(appStartTime===0 || (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
   var sec=COMPOSITION[currentSectionIndex()];
   if(!sec||!sec.parts) return;
   for(var i=0;i<moodBtns.length;i++){
@@ -860,7 +869,7 @@ function updateMoodDisplay(){
     if(sounding && !lastSoundingState[i]){ blinkMoodBtn(i); autoTapForInstrument(i); }
     lastSoundingState[i]=sounding;
   }
-  /* ② 背景の色は「今鳴っている楽器の集合」にゆっくり寄せる。
+  /* 背景の色は「今鳴っている楽器の集合」にゆっくり寄せる。
      ただし active[](=SEIKAI本来の音律/色決定配列)は書き換えない —
      これを毎フレーム上書きすると曲の音律が激しく揺れてしまうため、
      色の混色専用の別配列(colorMix)だけを更新する。 */
@@ -902,13 +911,17 @@ function pickFarPosition(){
 }
 function autoTapForInstrument(idx){
   if(!W||!H) return;
+  /* 予約する時点でもイントロ中なら何もしない(二重の防御)。
+     発火時点のガードだけでは、予約自体が大量に積み上がることは
+     防げないため、入口でも早期returnする。 */
+  if(appStartTime===0 || (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
   /* 発火を 0.3〜3.2秒の範囲でランダムに遅らせ、複数楽器の同時切り替えが
      一斉タップにならないようにする */
   var delay=rand(300,3200);
   setTimeout(function(){
     if(!W||!H) return;
-    /* ③ 起動直後の数秒間はオートタップ自体を起こさない */
-    if(appStartTime>0 && (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
+    /* イントロ中はオートタップ自体を起こさない(発火時点でも再確認)。 */
+    if(appStartTime===0 || (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
     var p=pickFarPosition();
     recentAutoTapPos.push({x:p.x,y:p.y,t:Date.now()});
     touchAt(p.x, p.y, false, true);   /* isAuto=true — 実タップの1/n正規化には数えない */
