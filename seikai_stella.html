@@ -1078,9 +1078,30 @@ function heroPlay(){
   if(masterGain) masterGain.gain.value = 0.0001; /* レンダリング完了まで無音を維持 */
   var heroEl=document.getElementById('hero');
   var heroStatus=document.getElementById('heroStatus');
-  if(heroStatus) heroStatus.textContent='\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...';
+  var bgStatusEl=document.getElementById('bgStatus');
+  if(heroStatus) heroStatus.textContent='\u78ba\u8a8d\u4e2d...';
   var playBtn=document.getElementById('play');
   if(playBtn) playBtn.disabled=true;
+  
+  /* 旧Stella_Melodysから引き継いだキャッシュ機構(IndexedDB)により、
+     toggleBgMode内部では「確認中...」→「キャッシュ確認中...」→
+     (キャッシュがあれば)「キャッシュから即再生」、(無ければ)
+     「レンダリング中...」→「エンコード中...」と、実際の進行状況が
+     bgStatus要素(非表示のまま)に書き込まれている。
+     以前はこの実際の進捗を見せず、常に固定で「レンダリング中...」と
+     表示していたため、キャッシュが効いて速く終わっても、画面上は
+     「レンダリング中」の表示のまま見えてしまい、キャッシュの恩恵が
+     体感できなかった。bgStatusの変化をheroStatusにも反映させることで、
+     実際にキャッシュがヒットした時は「キャッシュから即再生」という
+     表示が画面に出て、速さが分かるようにする。 */
+  var statusObserver=null;
+  if(bgStatusEl && heroStatus && window.MutationObserver){
+    statusObserver=new MutationObserver(function(){
+      var t=bgStatusEl.textContent;
+      if(t) heroStatus.textContent=t;
+    });
+    statusObserver.observe(bgStatusEl,{childList:true,characterData:true,subtree:true});
+  }
   
   /* ① レンダリングの進行に合わせて、画面中央から徐々に透明度を落とす。
      OfflineAudioContextには標準の詳細進捗イベントが無いため、経過時間
@@ -1133,6 +1154,7 @@ function heroPlay(){
   }
   
   toggleBgMode(function(success){
+    if(statusObserver){ statusObserver.disconnect(); statusObserver=null; }
     finishReveal();
     if(playBtn) playBtn.disabled=false;
     if(heroStatus) heroStatus.textContent='';
