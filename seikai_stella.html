@@ -1065,16 +1065,20 @@ function heroPlay(){
   /* ① レンダリングの進行に合わせて、画面中央から徐々に透明度を落とす。
      OfflineAudioContextには標準の詳細進捗イベントが無いため、経過時間
      から疑似的なカーブ(最初は速く、後半はゆっくり90%手前で足踏み)で
-     --reveal(0〜50%、中心の見える円の半径)を滑らかに進める。
+     --reveal(0〜22%、中心の見える円の半径)を滑らかに進める。
+     上限は「VOLパネルや惑星ボタンなどのUIが透けて見え始める手前」に
+     意図的に抑えている。以前は46%まで許容していたが、その時点で
+     既にUIがうっすら見えてしまい、「操作できそうに見えるのに実際は
+     レンダリング中でタップ無効」という矛盾した見え方になっていた。
      完了時は実際の完了を検知して即座に100%相当まで開放する。 */
   if(heroEl) heroEl.style.setProperty('--reveal','0%');
   var revealStart=Date.now(), revealTimer=null, revealDone=false;
   function tickReveal(){
     if(revealDone||!heroEl) return;
     var el=Date.now()-revealStart;
-    /* 0〜18秒程度で0%→46%まで滑らかに近づく(90%漸近カーブ) */
+    /* 0〜18秒程度で0%→22%まで滑らかに近づく(90%漸近カーブ) */
     var frac=1-Math.exp(-el/9000); // 0..1、9秒で約63%、18秒で約86%
-    var pct=(frac*46).toFixed(1);
+    var pct=(frac*22).toFixed(1);
     heroEl.style.setProperty('--reveal', pct+'%');
     revealTimer=requestAnimationFrame(tickReveal);
   }
@@ -1168,9 +1172,23 @@ function boot(){
      裏で静かにBG音源をレンダリングしIndexedDBへ保存しておくことで、
      実際に「バックグラウンド再生」を使う時に待ち時間なく即座に鳴る
      ようにする(音は鳴らさない、キャッシュを埋めるだけの処理)。
-     Stellaエンジンの関数群がこの時点でまだ定義されていない可能性が
-     あるため、少し遅らせて呼び出す。 */
-  setTimeout(function(){ try{ idlePrewarmBg(); }catch(e){} }, 6000);
+     旧版は requestIdleCallback を使い、ブラウザの手が空いた瞬間に
+     即座に実行していた。融合版では boot() の時点でStellaエンジンの
+     関数群がまだ定義されていないため、以前は固定6秒待ちにしていたが、
+     これだと「旧版より起動が遅い」状態になっていた。
+     idlePrewarmBg自身が未定義関数を検知して安全にreturnする作りに
+     なっているので、旧版と同じrequestIdleCallbackを使い、関数が
+     まだ無ければ短い間隔でリトライする方式に戻す。 */
+  function tryPrewarm(retriesLeft){
+    if(typeof idlePrewarmBg==='function'){
+      try{ idlePrewarmBg(); }catch(e){}
+      return;
+    }
+    if(retriesLeft<=0) return;
+    setTimeout(function(){ tryPrewarm(retriesLeft-1); }, 300);
+  }
+  if('requestIdleCallback' in window){ requestIdleCallback(function(){ tryPrewarm(15); },{timeout:8000}); }
+  else{ setTimeout(function(){ tryPrewarm(15); },1500); }
 }
 boot();
 
