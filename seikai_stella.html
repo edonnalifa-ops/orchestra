@@ -667,7 +667,15 @@ window.addEventListener("keydown",function(e){ if(e.code==="Space"||e.keyCode===
 
 /* --- 音（常時オン。触れずとも淡い持続音が流れる） --- */
 var AC=null,master=null;
-function ensureAudio(){ if(!AC){ try{ var C=window.AudioContext||window.webkitAudioContext; AC=new C(); master=AC.createGain(); master.gain.value=MASTER_GAIN; master.connect(AC.destination); }catch(e){ AC=null; } } if(AC&&AC.state==="suspended"){ try{AC.resume();}catch(e){} } }
+function ensureAudio(){
+  if(!AC){ try{ var C=window.AudioContext||window.webkitAudioContext; AC=new C(); master=AC.createGain(); master.gain.value=MASTER_GAIN; master.connect(AC.destination); }catch(e){ AC=null; } }
+  /* バックグラウンド再生中は、AC(=audioCtxと同一インスタンス)が
+     意図的にsuspendされている。ここで無条件にresume()すると、
+     BG再生のために止めたcontextを毎回引き戻してしまい、連打すると
+     バックグラウンド再生が壊れる不具合の原因になっていた。
+     BG再生中はresumeを試みない。 */
+  if(AC&&AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} }
+}
 /* iOS/モバイルは「操作の中で実際に音を出す」まで無音のまま。最初の操作で確実に解錠する */
 function unlockAudio(){
   ensureAudio(); if(!AC) return;
