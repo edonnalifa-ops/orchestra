@@ -1088,6 +1088,13 @@ function boot(){
   var iv=setInterval(function(){ pct+=Math.random()*18+6; if(pct>=100){ pct=100; clearInterval(iv); setTimeout(function(){ld.className="loader gone";},280); } var s=""+Math.floor(pct); if(s.length<2)s="0"+s; lp.textContent=s+"%"; },90);
   setTimeout(function(){ drop(W*0.5,H*0.46,520); },1100);
   setTimeout(function(){ spawnSkyMeteor(); },2600);
+  /* 旧Stella_Melodysの「事前レンダリング」を復元。ページ読み込み後、
+     裏で静かにBG音源をレンダリングしIndexedDBへ保存しておくことで、
+     実際に「バックグラウンド再生」を使う時に待ち時間なく即座に鳴る
+     ようにする(音は鳴らさない、キャッシュを埋めるだけの処理)。
+     Stellaエンジンの関数群がこの時点でまだ定義されていない可能性が
+     あるため、少し遅らせて呼び出す。 */
+  setTimeout(function(){ try{ idlePrewarmBg(); }catch(e){} }, 6000);
 }
 boot();
 
@@ -1100,6 +1107,12 @@ var orchestraMode=true, allBandsMode=true, autoModesApplied=true;
 var voices=[], orchestraFilter=null, compStartT=0, orchGainNode=null;
 var allBandsObj=null, musicOscs=[], chordIndex=0, chordTimer=null, melodyTimer=null;
 var bgActive=false, bgRendering=false, bgAudioEl=null, bgBlobUrl=null;
+/* 起動確認・プローブ用の極小無音WAV(100ms、8kHz、モノラル8bit)。
+   融合時のエンジン移植でこの定数の定義が抜け落ちており、
+   bgAudioEl.src が undefined になっていたため、probeMediaSupport が
+   環境を問わず常にエラーで失敗し「このビューアではBG再生不可」と
+   誤って表示され続けていた。旧Stella_Melodysの構成から復元。 */
+var SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 var bgEls=[null,null], bgCur=0, bgSrcUrl=null, bgLoopTimer=null;
 var bgSnapshot=null, mediaProbeOk=false, sessionEl=null;
 var LOOP_LEN_SEC=256;
@@ -1798,6 +1811,24 @@ function stopGaplessLoop() {
 }
 
 // ===== fn:toggleBgMode =====
+/* 旧Stella_Melodysの「アイドル時プリレンダリング」の復元。
+   ページ読み込み後、ユーザー操作なしに裏でBG音源をレンダリングして
+   IndexedDBへ保存しておく。実際に「バックグラウンド再生」を使う
+   タイミングでは、このキャッシュがあれば即座に鳴らせる(20秒規模の
+   レンダリング待ちが発生しない)。
+   音は一切鳴らさない — 完全に無音の準備作業。 */
+function idlePrewarmBg(){
+  if(!window.indexedDB||!(window.OfflineAudioContext||window.webkitOfflineAudioContext))return;
+  if(typeof bgCacheKey!=='function'||typeof idbGet!=='function')return; /* エンジン未定義なら諦める */
+  var key=bgCacheKey();
+  idbGet(key).then(function(cached){
+    if(cached)return; /* 既にキャッシュ済み */
+    return renderCompositionOffline(function(){}).then(function(blob){
+      return idbSet(key, blob);
+    });
+  }).catch(function(){ /* 失敗しても何もしない。実際に使う時に通常のレンダリングへフォールバックする */ });
+}
+
 function toggleBgMode(onDone) {
   var btn = document.getElementById('bgModeBtn');
   var status = document.getElementById('bgStatus');
