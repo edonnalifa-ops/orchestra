@@ -690,7 +690,12 @@ function ensureAudio(){
 function unlockAudio(){
   ensureAudio(); if(!AC) return;
   try{ var b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
-  if(AC.state==="suspended"){ try{AC.resume();}catch(e){} }
+  /* 修正: BG再生中はaudioCtx(=AC)が意図的にsuspendされている。
+     armUnlockのハンドラは毎タップ発火し続けるため、ここで無条件に
+     resume()するとBG再生用の<audio>とオーディオセッションが競合し、
+     連続タップでBGMだけが消失する。ensureAudio側(687行)と同じ
+     bgActiveガードをここにも適用する(過去修正の漏れ)。 */
+  if(AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} }
 }
 /* 最初のあらゆる操作で解錠を試みる（window全体に張る） */
 function armUnlock(){
@@ -700,7 +705,8 @@ function armUnlock(){
   window.addEventListener("mousedown",h,false);
   window.addEventListener("click",h,false);
   window.addEventListener("keydown",h,false);
-  document.addEventListener("visibilitychange",function(){ if(!document.hidden&&AC&&AC.state==="suspended"){ try{AC.resume();}catch(e){} } },false);
+  /* 修正: 画面復帰時も同様。BG再生中(bgActive)はresumeしない(同種バグの残党対策) */
+  document.addEventListener("visibilitychange",function(){ if(!document.hidden&&AC&&AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} } },false);
 }
 function profile(){ var oct=0,sset={},iset={},i,j; for(i=0;i<active.length;i++){ var au=MOODS[active[i]].au; oct+=au.oct; for(j=0;j<au.scale.length;j++)sset[au.scale[j]]=1; for(j=0;j<au.insts.length;j++)iset[au.insts[j]]=1; } oct=Math.round(oct/active.length); var scale=[],k; for(k in sset)scale.push(parseFloat(k)); scale.sort(function(a,b){return a-b;}); var insts=[],mm; for(mm in iset)insts.push(parseInt(mm,10)); if(!scale.length)scale=[1,9/8,5/4,3/2,5/3]; if(!insts.length)insts=[0]; return {oct:oct,scale:scale,insts:insts}; }
 function pitchAt(y,prof){ var n=prof.scale.length*OCTAVES,idx=Math.floor((1-y/H)*n); if(idx<0)idx=0; if(idx>n-1)idx=n-1; var oct=Math.floor(idx/prof.scale.length)+prof.oct,deg=idx%prof.scale.length; return BASE_FREQ*Math.pow(2,oct)*prof.scale[deg]; }
