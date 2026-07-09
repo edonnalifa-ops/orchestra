@@ -54,7 +54,7 @@
   .hero{ position:fixed; inset:0; z-index:9; pointer-events:none; display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; transition:opacity 1.3s ease; padding:0 18px;
     --reveal:0%;
-    background:radial-gradient(circle at 50% 50%, rgba(1,2,10,0) var(--reveal), rgba(1,2,10,1) calc(var(--reveal) + 38%)); }
+    background:radial-gradient(circle at 50% 50%, rgba(1,2,10,0) var(--reveal), rgba(1,2,10,1) calc(var(--reveal) + 26%)); }
   .hero.gone{opacity:0;}
   .hero .tag{ font-family:"Space Mono",monospace; font-size:12px; letter-spacing:.32em; color:#6f7da8; margin-bottom:20px; }
   .hero h1{ font-weight:300; font-size:min(10vw,52px); letter-spacing:.14em; line-height:1.3; text-shadow:0 0 44px rgba(120,170,255,.28); }
@@ -427,6 +427,11 @@ function drop(px,py,amp){
 function crest(x,y,num,col){ for(var i=0;i<num;i++){ if(sparks.length>=MAX_SPARKS)sparks.shift(); var a=Math.random()*6.283,sp=rand(0.4,1.6)*dpr; sparks.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:rand(0.014,0.03),size:rand(0.5,1.4)*dpr,col:col}); } }
 function nearestConstellation(px,py){ var gx=px/W*gw,gy=py/H*gh,best=1e9,bi=-1,i; for(i=0;i<constels.length;i++){ var c=constels[i],dx=c.fx*gw-gx,dy=c.fy*gh-gy,d=dx*dx+dy*dy; if(d<best){best=d;bi=i;} } return bi>=0?constels[bi]:null; }
 function touchAt(x,y,big,isAuto){
+  /* レンダリング中は、流れ星の着水・画面タップ・オートタップの
+     いずれの経路から呼ばれても、波紋・星座名表示・音を一切発生させない。
+     touchAtがこれら全ての唯一の合流点になっているため、ここ一箇所で
+     ガードすれば、経路ごとに個別対応する必要がない。 */
+  if(bgRendering) return;
   drop(x,y, big?WATER.dropBig:WATER.dropTap); crest(x,y, big?14:6, curAccent); count++; updateCount();
   var c=nearestConstellation(x,y); if(c)showCons(c);
   if(big)playMelody(x,y); else playTouch(x,y,isAuto);
@@ -583,6 +588,12 @@ function frame(time){
       var hgm=ctx.createRadialGradient(me.x,me.y,0,me.x,me.y,5*dpr); hgm.addColorStop(0,rgba(curStar,0.9)); hgm.addColorStop(1,rgba(curStar,0)); ctx.fillStyle=hgm; ctx.beginPath(); ctx.arc(me.x,me.y,5*dpr,0,6.283); ctx.fill();
       if(me.trav>=me.dist){
         if(me.pass){ /* 横切るだけ：着水も音もなく退出（配列から落とす） */ }
+        else if(bgRendering){
+          /* レンダリング中は流れ星の着水判定そのものを無効化する。
+             波紋も音も発生させず、静かに消える(視覚的な尾は
+             見えたままで構わないが、着水イベントは起こさない)。 */
+          me.landed=true; me.life=1;
+        }
         else {
           me.landed=true; me.life=1; drop(me.tx,me.ty,WATER.dropTap*1.05); crest(me.tx,me.ty,10,curAccent); count++; updateCount(); fvStop(meteorFV);
           /* 流星群の着水音は重複(重なって鳴ること)を許可するが、
@@ -1065,7 +1076,9 @@ function heroPlay(){
   /* ① レンダリングの進行に合わせて、画面中央から徐々に透明度を落とす。
      OfflineAudioContextには標準の詳細進捗イベントが無いため、経過時間
      から疑似的なカーブ(最初は速く、後半はゆっくり90%手前で足踏み)で
-     --reveal(0〜22%、中心の見える円の半径)を滑らかに進める。
+     --reveal(0〜8%、中心の見える円の半径)を滑らかに進める。
+     22%でもまだ惑星ボタンや星座名がうっすら見えてしまっていたため、
+     さらに大幅に絞った。
      上限は「VOLパネルや惑星ボタンなどのUIが透けて見え始める手前」に
      意図的に抑えている。以前は46%まで許容していたが、その時点で
      既にUIがうっすら見えてしまい、「操作できそうに見えるのに実際は
@@ -1078,7 +1091,7 @@ function heroPlay(){
     var el=Date.now()-revealStart;
     /* 0〜18秒程度で0%→22%まで滑らかに近づく(90%漸近カーブ) */
     var frac=1-Math.exp(-el/9000); // 0..1、9秒で約63%、18秒で約86%
-    var pct=(frac*22).toFixed(1);
+    var pct=(frac*8).toFixed(1);
     heroEl.style.setProperty('--reveal', pct+'%');
     revealTimer=requestAnimationFrame(tickReveal);
   }
