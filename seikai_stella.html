@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="宇宙の水面に触れる。最奥で天の川が巡り、夜空のグラデーションの下に88星座と黄道13門が沈み、流れ星が落ちて水面に波紋を生む。画像も動画も使わないインタラクティブ・プレイグラウンド。">
+<meta name="theme-color" content="#01020a">
+<title>SEIKAI × Stella_Melodys — 宇宙の水面に、触れる。</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;500&family=Zen+Maru+Gothic:wght@500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;background:#01020a;overflow:hidden;}
+  body{ font-family:"Zen Kaku Gothic New",sans-serif; color:#e9edff;
+    -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+  #cosmos{ position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:crosshair; z-index:0; will-change:transform; }
+  .vignette{ position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 42%, rgba(0,0,0,0) 58%, rgba(0,0,4,.4) 100%); }
+  .hud{ position:fixed; top:0; left:0; right:0; z-index:3; display:flex; flex-direction:column; align-items:center;
+    padding:16px 22px 0; pointer-events:none; font-family:"Space Mono",monospace; font-size:12px; letter-spacing:.16em; }
+  .hud .volwrap{ pointer-events:auto; display:flex; flex-direction:column; gap:8px; width:min(88vw,420px);
+    padding:11px 14px 12px; border-radius:18px;
+    background:rgba(10,16,30,0.28); border:1px solid rgba(140,190,255,0.14); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  .hud .count{ color:#8ec2f0; opacity:.72; text-align:center; }
+  .hud .volrow{ display:flex; align-items:center; gap:10px; }
+  .hud .vlabel{ color:#8ec2f0; opacity:.7; font-size:10px; letter-spacing:.2em; }
+  .hud .volrow input[type=range]{ -webkit-appearance:none; appearance:none; flex:1; height:2px; border-radius:2px;
+    background:rgba(140,190,255,0.25); outline:none; }
+  .hud .volrow input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+    background:#aecdff; cursor:pointer; box-shadow:0 0 8px rgba(140,190,255,0.5); }
+  .hud .volrow input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:#aecdff; cursor:pointer; border:0; }
+  .hud .reload{ pointer-events:auto; cursor:pointer; background:transparent; border:0; font-family:inherit;
+    color:#8ec2f0; opacity:.6; font-size:19px; line-height:1; padding:2px 4px; transition:opacity .3s ease, transform .5s ease; flex-shrink:0; }
+  .hud .reload:hover{ opacity:1; transform:rotate(-180deg); }
+  .consname{ position:fixed; top:132px; left:0; right:0; text-align:center; z-index:2; pointer-events:none;
+    opacity:0; transition:opacity .6s ease; }
+  .consname.show{ opacity:.62; }   /* 他UIと透明度を合わせる */
+  .consname .jp, .consname .z{ font-family:"Zen Maru Gothic",sans-serif; font-weight:700; font-size:32px; letter-spacing:.12em;
+    /* ① 丸文字 + 袋文字: 中抜き(透明) + 縁取りのみ。水面が文字の内側から透ける */
+    color:transparent;
+    -webkit-text-stroke:1.8px rgba(190,214,255,0.9);
+    text-stroke:1.8px rgba(190,214,255,0.9);
+    paint-order:stroke fill; }
+  .consname .z{ -webkit-text-stroke-color:rgba(255,217,160,0.9); text-stroke-color:rgba(255,217,160,0.9); }
+  /* ② アルファベット名も同じ縁取り(袋文字)・丸文字に */
+  .consname .la{ font-family:"Zen Maru Gothic",sans-serif; font-weight:500; font-size:13px; letter-spacing:.22em; display:block; margin-top:8px;
+    color:transparent;
+    -webkit-text-stroke:1.0px rgba(150,175,225,0.85);
+    text-stroke:1.0px rgba(150,175,225,0.85);
+    paint-order:stroke fill; }
+  .hero{ position:fixed; inset:0; z-index:2; pointer-events:none; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; transition:opacity 1.3s ease; padding:0 18px; }
+  .hero.gone{opacity:0;}
+  .hero .tag{ font-family:"Space Mono",monospace; font-size:12px; letter-spacing:.32em; color:#6f7da8; margin-bottom:20px; }
+  .hero h1{ font-weight:300; font-size:min(10vw,52px); letter-spacing:.14em; line-height:1.3; text-shadow:0 0 44px rgba(120,170,255,.28); }
+  .hero h1 b{font-weight:500;color:#bcd6ff;}
+  .hero .legend{ margin-top:24px; font-size:13px; letter-spacing:.1em; line-height:2.1; color:#7f90bf; font-weight:300; }
+  .hero .play{ pointer-events:auto; margin-top:32px; font-family:"Zen Kaku Gothic New",sans-serif; font-weight:300;
+    font-size:16px; letter-spacing:.5em; padding:13px 42px 13px 47px; color:#dfeaff; background:transparent;
+    border:1px solid rgba(140,190,255,.32); border-radius:2px; cursor:pointer; transition:all .4s ease; }
+  .hero .play:hover{ background:rgba(140,190,255,.08); border-color:#8cbfff; box-shadow:0 0 30px rgba(140,190,255,.18); }
+  .moodpanel{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom, 0px)); z-index:3;
+    width:min(92vw,360px); padding:10px; border-radius:18px;
+    background:rgba(10,16,30,0.28); border:1px solid rgba(140,190,255,0.14);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    pointer-events:none; }   /* ③ ユーザーは触れない */
+  .moods{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%; }
+  .moods button{ font-family:"Zen Kaku Gothic New",sans-serif; font-weight:300; font-size:15px; letter-spacing:.1em;
+    color:#7c8bb4; background:rgba(10,16,30,0.14); border:1px solid rgba(140,190,255,0.10); cursor:default;
+    padding:9px 4px 8px; border-radius:12px; transition:color .5s, background .5s, border-color .5s, box-shadow .5s, opacity .5s;
+    display:flex; flex-direction:column; align-items:center; gap:1px; line-height:1.1; width:100%;
+    pointer-events:none; opacity:.5; }   /* ②③ 透過 + 触れない */
+  .moods button .en{ font-family:"Space Mono",monospace; font-size:8px; letter-spacing:.06em; opacity:.6; }
+  /* ④ 点灯 = その楽器が今“鳴っている”ときだけ明るくなる(Stella風) */
+  .moods button.sounding{ color:#dbe6ff; background:rgba(174,205,255,0.18); border-color:rgba(174,205,255,0.35);
+    opacity:1; box-shadow:0 0 14px rgba(140,190,255,0.35); }
+  .moods button.off{ opacity:.28; }   /* 楽器OFF(惑星非選択)は暗く沈む */
+  .moods button.blink{ animation:moodblink .5s ease; }
+  @keyframes moodblink{ 0%{ box-shadow:0 0 0 rgba(174,205,255,0);} 45%{ box-shadow:0 0 22px rgba(174,205,255,0.8); } 100%{ box-shadow:0 0 12px rgba(174,205,255,0.3);} }
+  .loader{ position:fixed; inset:0; z-index:9; background:#01020a; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transition:opacity 1s ease; gap:14px; }
+  .loader.gone{opacity:0;pointer-events:none;}
+  .loader .lname{font-weight:300;font-size:32px;letter-spacing:.42em;color:#bcd6ff;padding-left:.42em;}
+  .loader .lpct{font-family:"Space Mono",monospace;font-size:13px;letter-spacing:.3em;color:#4a5678;}
+  .toast{ position:fixed; left:50%; bottom:96px; transform:translate(-50%,14px); font-family:"Space Mono",monospace; font-size:11px; letter-spacing:.14em;
+    color:#01020a; background:#aecdff; padding:8px 16px; border-radius:2px; opacity:0; pointer-events:none; transition:all .4s ease; z-index:6; }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+  @media (max-width:480px){ .hero .legend{font-size:12px;} .hud{padding:16px 16px;} }
+</style>
+</head>
+<body>
+<canvas id="cosmos"></canvas>
+<div class="vignette"></div>
+
+<div class="hud" id="hud">
+  <div class="volwrap">
+    <div class="count" id="count">ほしのかけら 0000</div>
+    <div class="volrow">
+      <span class="vlabel">VOL</span>
+      <input type="range" id="volume" min="0" max="100" value="100" step="1">
+      <button class="reload" id="reload" title="リロード" aria-label="リロード">↺</button>
+    </div>
+  </div>
+</div>
+<div class="consname" id="consname"></div>
+
+<div class="hero" id="hero">
+  <button class="play" id="play">再生</button>
+</div>
+
+<div class="moodpanel" id="moodpanel">
+  <div class="moods" id="moods"></div>
+</div>
+<div style="display:none;">
+  <input type="range" id="leftFreq" min="40" max="1000" value="100">
+  <input type="range" id="rightFreq" min="40" max="1000" value="110">
+  <input type="range" id="shoreVol" min="0" max="100" value="10">
+  <input type="range" id="musicVol" min="0" max="100" value="100">
+  <input type="range" id="orchVol" min="0" max="100" value="100">
+  <button id="bgModeBtn"></button>
+  <span id="bgStatus"></span>
+</div>
+
+<div class="loader" id="loader">
+  <div class="lname">星海</div>
+  <div class="lpct" id="lpct">00%</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   SEIKAI v7 — 宇宙の水面に、触れる。
+   画像も動画も使わず、キャンバスがリアルタイムに描いています。
+
+   層(奥→手前):
+   ① 回転する天の川(最奥)
+   ② 沈んだ宇宙(星雲・月・星・全天88星座＋黄道13門・幾何学)
+   ③ 夜空のグラデーション(背景の最前)
+   ── これを水面が波動方程式で屈折させて映す。
+   さらに、流れ星がランダムに落ち、着水点に本物の波紋と音を生む。
+
+   ▼ WATER: 水の性格。 ▼ MOODS: 惑星の群れ(色＋音)。9つ・複数選択可。
+   ▼ SHAPE_COUNT: 幾何学の数。 ▼ METEOR: 流れ星の頻度。 ▼ GRID_LONG: 水の精細さ。
+   ------------------------------------------------------------ */
+var WATER = { damp:5, disp:3, emboss:3, base:0.13, revealK:0.006, maxBright:1.8, dropTap:340, dropBig:1000, dropWake:150 };
+
+/* 惑星の群れ = 色(star/accent/neb) ＋ 音(au: oct=音域 内惑星ほど高い, scale=音律, insts=[0澄 1鈴 2爪弾 3木]) */
+var MOODS = [
+  {name:"水", star:[212,220,234], accent:[180,202,232], neb:[[40,52,72],[30,40,60]], deep:[16,26,46],
+   au:{oct:1, scale:[1,9/8,5/4,3/2,5/3], insts:[0,1]}},
+  {name:"金", star:[255,238,200], accent:[255,212,150], neb:[[112,90,50],[92,72,58]], deep:[44,30,10],
+   au:{oct:1, scale:[1,5/4,4/3,3/2,15/8], insts:[1,0]}},
+  {name:"地", star:[202,232,232], accent:[130,210,188], neb:[[24,72,92],[30,80,70]], deep:[8,36,42],
+   au:{oct:0, scale:[1,9/8,5/4,3/2,5/3], insts:[0,2]}},
+  {name:"火", star:[255,206,182], accent:[255,120,92], neb:[[112,40,30],[82,34,42]], deep:[52,12,12],
+   au:{oct:0, scale:[1,6/5,4/3,3/2,8/5], insts:[2,3]}},
+  {name:"木", star:[255,224,190], accent:[240,182,122], neb:[[112,76,44],[92,60,82]], nebStrong:true, deep:[48,26,10],
+   au:{oct:-1, scale:[1,9/8,5/4,3/2,27/16], insts:[3,0]}},
+  {name:"土", star:[240,226,190], accent:[220,196,140], neb:[[100,84,54],[80,70,102]], deep:[40,32,14],
+   au:{oct:-1, scale:[1,9/8,6/5,3/2,5/3], insts:[0,3]}},
+  {name:"天", star:[206,238,240], accent:[150,225,225], neb:[[30,86,96],[36,58,104]], deep:[10,44,48],
+   au:{oct:-1, scale:[1,9/8,5/4,11/8,3/2,7/4], insts:[1,0]}},
+  {name:"海", star:[200,214,255], accent:[110,150,255], neb:[[30,44,120],[24,40,86]], moonBright:true, deep:[10,20,64],
+   au:{oct:-2, scale:[1,9/8,6/5,3/2,9/5], insts:[0,1]}},
+  {name:"冥", star:[220,210,205], accent:[182,162,152], neb:[[60,48,52],[42,40,58]], deep:[38,26,44],
+   au:{oct:-2, scale:[1,6/5,4/3,3/2,8/5], insts:[3,2]}}
+];
+
+var SHAPE_COUNT = 8;
+var GRID_LONG = 230;
+var METEOR = {
+  gapMin:2500, gapMax:16000,   /* 降る間隔(ms)：もっと気まぐれに */
+  speedMin:9, speedMax:26,     /* 降下の速さ(=降下時間) */
+  showerChance:0.08,           /* 一回の出現が「流星群」になる確率 */
+  showerMin:5, showerMax:12,   /* 流星群の数 */
+  showerStagger:90, showerStaggerMax:340,   /* 群れ内の1つずつの間隔(ms) */
+  passChance:0.4               /* 着地せず画面を横切るだけになる確率 */
+};
+var BASE_FREQ = 220, OCTAVES = 3, MASTER_GAIN = 0.5;
+var MAX_SPARKS = 300;
+/* 闇の奥行き：黒の層と前景の塵 */
+var DEPTH = { veils:5, veilAlpha:0.15, abyss:0.5, surface:0.09, motes:46, wash:0.07, rim:0.55, rim2:0.4 };
+
+var ZODIAC = {Aries:1,Taurus:1,Gemini:1,Cancer:1,Leo:1,Virgo:1,Libra:1,Scorpius:1,Ophiuchus:1,Sagittarius:1,Capricornus:1,Aquarius:1,Pisces:1};
+var CONS_RAW = [
+["アンドロメダ","Andromeda"],["ポンプ","Antlia"],["ふうちょう","Apus"],["みずがめ","Aquarius"],["わし","Aquila"],
+["さいだん","Ara"],["おひつじ","Aries"],["ぎょしゃ","Auriga"],["うしかい","Bootes"],["ちょうこくぐ","Caelum"],
+["きりん","Camelopardalis"],["かに","Cancer"],["りょうけん","Canes Venatici"],["おおいぬ","Canis Major"],["こいぬ","Canis Minor"],
+["やぎ","Capricornus"],["りゅうこつ","Carina"],["カシオペヤ","Cassiopeia"],["ケンタウルス","Centaurus"],["ケフェウス","Cepheus"],
+["くじら","Cetus"],["カメレオン","Chamaeleon"],["コンパス","Circinus"],["はと","Columba"],["かみのけ","Coma Berenices"],
+["みなみのかんむり","Corona Australis"],["かんむり","Corona Borealis"],["からす","Corvus"],["コップ","Crater"],["みなみじゅうじ","Crux"],
+["はくちょう","Cygnus"],["いるか","Delphinus"],["かじき","Dorado"],["りゅう","Draco"],["こうま","Equuleus"],
+["エリダヌス","Eridanus"],["ろ","Fornax"],["ふたご","Gemini"],["つる","Grus"],["ヘルクレス","Hercules"],
+["とけい","Horologium"],["うみへび","Hydra"],["みずへび","Hydrus"],["インディアン","Indus"],["とかげ","Lacerta"],
+["しし","Leo"],["こじし","Leo Minor"],["うさぎ","Lepus"],["てんびん","Libra"],["おおかみ","Lupus"],
+["やまねこ","Lynx"],["こと","Lyra"],["テーブルさん","Mensa"],["けんびきょう","Microscopium"],["いっかくじゅう","Monoceros"],
+["はえ","Musca"],["じょうぎ","Norma"],["はちぶんぎ","Octans"],["へびつかい","Ophiuchus"],["オリオン","Orion"],
+["くじゃく","Pavo"],["ペガスス","Pegasus"],["ペルセウス","Perseus"],["ほうおう","Phoenix"],["がか","Pictor"],
+["うお","Pisces"],["みなみのうお","Piscis Austrinus"],["とも","Puppis"],["らしんばん","Pyxis"],["レチクル","Reticulum"],
+["や","Sagitta"],["いて","Sagittarius"],["さそり","Scorpius"],["ちょうこくしつ","Sculptor"],["たて","Scutum"],
+["へび","Serpens"],["ろくぶんぎ","Sextans"],["おうし","Taurus"],["ぼうえんきょう","Telescopium"],["さんかく","Triangulum"],
+["みなみのさんかく","Triangulum Australe"],["きょしちょう","Tucana"],["おおぐま","Ursa Major"],["こぐま","Ursa Minor"],["ほ","Vela"],
+["おとめ","Virgo"],["とびうお","Volans"],["こぎつね","Vulpecula"]
+];
+
+/* ============================================================
+   ▼ ここから下は仕組み。基本、触らなくて大丈夫。
+   ============================================================ */
+var cv=document.getElementById("cosmos"), ctx=cv.getContext("2d");
+var dpr=Math.min(window.devicePixelRatio||1,2);
+var W=0,H=0,gw=0,gh=0;
+var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+var active=[0,1,2,3,4,5,6,7,8];   /* 既定＝全惑星ON(=全9楽器) — 音律(profile)はこれを常に参照。安定させ、曲を変質させない */
+var colorMix=active;              /* 背景色の混色だけに使う可変配列。音楽には影響しない */
+var curStar=[202,232,232], curAccent=[130,210,188], curNeb=[[24,72,92],[30,80,70]];
+var curDeep=[8,36,42];
+
+var cur,prv, deepC,deepX, outC,outX,outImg,deepData, mwC;
+var dstars=[],shapes=[],sparks=[],constels=[],skyMeteors=[];
+var veils=[],motes=[];
+var count=0;
+
+function rand(a,b){ return a+Math.random()*(b-a); }
+function rgba(c,a){ return "rgba("+Math.round(c[0])+","+Math.round(c[1])+","+Math.round(c[2])+","+a+")"; }
+function lerp3(c,d,k){ c[0]+=(d[0]-c[0])*k; c[1]+=(d[1]-c[1])*k; c[2]+=(d[2]-c[2])*k; }
+function mkCanvas(w,h){ var c=document.createElement("canvas"); c.width=w; c.height=h; return c; }
+function mulberry32(a){ return function(){ a|=0; a=(a+1831565813)|0; var t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+function anyFlag(f){ for(var i=0;i<active.length;i++){ if(MOODS[active[i]][f]) return true; } return false; }
+
+/* --- 立体(3D) --- */
+function edgesByShortest(v){
+  var i,j,best=1e9,e=[];
+  for(i=0;i<v.length;i++)for(j=i+1;j<v.length;j++){ var dx=v[i][0]-v[j][0],dy=v[i][1]-v[j][1],dz=v[i][2]-v[j][2],d=dx*dx+dy*dy+dz*dz; if(d<best)best=d; }
+  for(i=0;i<v.length;i++)for(j=i+1;j<v.length;j++){ var dx2=v[i][0]-v[j][0],dy2=v[i][1]-v[j][1],dz2=v[i][2]-v[j][2],d2=dx2*dx2+dy2*dy2+dz2*dz2; if(Math.abs(d2-best)<0.05)e.push([i,j]); }
+  return e;
+}
+var SOLIDS=[];
+(function(){
+  var tetra=[[1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]],cube=[],octa=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]],a,b,c2;
+  for(a=-1;a<=1;a+=2)for(b=-1;b<=1;b+=2)for(c2=-1;c2<=1;c2+=2)cube.push([a,b,c2]);
+  var list=[tetra,cube,octa],k,i,m;
+  for(k=0;k<list.length;k++){ var v=list[k]; for(i=0;i<v.length;i++){ m=Math.sqrt(v[i][0]*v[i][0]+v[i][1]*v[i][1]+v[i][2]*v[i][2]); v[i]=[v[i][0]/m,v[i][1]/m,v[i][2]/m]; } SOLIDS.push({v:v,e:edgesByShortest(v)}); }
+})();
+
+function buildConstellations(){
+  constels=[]; var zc=0,i;
+  for(i=0;i<CONS_RAW.length;i++){
+    var jp=CONS_RAW[i][0], la=CONS_RAW[i][1], z=ZODIAC[la]?1:0, rng=mulberry32(((i+7)*2654435761)>>>0), fx,fy;
+    if(z){ var t=zc/13; zc++; fx=(t+0.02)%1; fy=0.5+Math.sin(t*6.283)*0.20+(rng()-0.5)*0.05; }
+    else { fx=rng(); fy=rng()*0.94+0.03; }
+    var nn=3+Math.floor(rng()*4),nodes=[],j;
+    for(j=0;j<nn;j++)nodes.push([rng()*2-1,rng()*2-1]);
+    constels.push({jp:jp,la:la,z:z,fx:fx,fy:fy,nodes:nodes,ph:rng()*6.28,sp:0.4+rng()*1.2});
+  }
+}
+
+function resize(){
+  W=Math.round(window.innerWidth*dpr); H=Math.round(window.innerHeight*dpr);
+  cv.width=W; cv.height=H; cv.style.width=window.innerWidth+"px"; cv.style.height=window.innerHeight+"px";
+  ctx.imageSmoothingEnabled=true;
+  var cell=Math.max(W,H)/GRID_LONG; gw=Math.max(8,Math.round(W/cell)); gh=Math.max(8,Math.round(H/cell));
+  cur=new Int32Array(gw*gh); prv=new Int32Array(gw*gh);
+  deepC=mkCanvas(gw,gh); deepX=deepC.getContext("2d",{willReadFrequently:true});
+  outC=mkCanvas(gw,gh); outX=outC.getContext("2d"); outImg=outX.createImageData(gw,gh);
+  var od=outImg.data,i; for(i=3;i<od.length;i+=4)od[i]=255;
+  seedDeepStars(); buildMilkyWay(); seedShapes(); seedDepth();
+}
+
+function seedDeepStars(){
+  dstars=[]; var n=Math.floor((gw*gh)/42); if(n>150)n=150; if(n<44)n=44;
+  for(var i=0;i<n;i++){
+    var mag=-1+7*Math.sqrt(Math.random());
+    var flux=Math.pow(2.512,-mag)/2.512; if(flux>1)flux=1; if(flux<0.002)flux=0.002;
+    dstars.push({x:Math.random()*gw,y:Math.random()*gh,mag:mag,flux:flux,base:0.05+flux*0.92,r:0.32+Math.sqrt(flux)*2.4,glow:flux>0.5,sp:0.4+Math.random()*1.4,ph:Math.random()*6.28,kind:Math.floor(Math.random()*3),drift:rand(0.003,0.016),tw:0.12+(1-flux)*0.34});
+  }
+}
+/* 天の川：回転できるよう対角の正方形に横帯で焼く */
+function buildMilkyWay(){
+  var side=Math.ceil(Math.sqrt(gw*gw+gh*gh))+2; mwC=mkCanvas(side,side);
+  var m=mwC.getContext("2d"), cy=side/2, band=Math.max(gw,gh)*0.30;
+  var g=m.createLinearGradient(0,cy-band,0,cy+band);
+  g.addColorStop(0,"rgba(176,196,236,0)"); g.addColorStop(0.5,"rgba(190,206,244,0.09)"); g.addColorStop(1,"rgba(176,196,236,0)");
+  m.fillStyle=g; m.fillRect(0,cy-band,side,band*2);
+  var i,n=Math.floor(side*band/12); if(n>1200)n=1200;
+  for(i=0;i<n;i++){ var u=rand(0,side), vv=cy+(rand(-1,1)+rand(-1,1)+rand(-1,1))/3*band, a=(1-Math.abs(vv-cy)/band)*rand(0.05,0.16); m.fillStyle="rgba(210,222,248,"+a+")"; m.fillRect(u,vv,rand(0.5,1.2),rand(0.5,1.2)); }
+  for(i=0;i<4;i++){ var u2=rand(0,side), v2=cy+rand(-band*0.4,band*0.4), dg=m.createRadialGradient(u2,v2,0,u2,v2,rand(20,45)); dg.addColorStop(0,"rgba(2,3,10,0.30)"); dg.addColorStop(1,"rgba(2,3,10,0)"); m.fillStyle=dg; m.beginPath(); m.arc(u2,v2,rand(20,45),0,6.283); m.fill(); }
+}
+function seedShapes(){
+  shapes=[];
+  for(var i=0;i<SHAPE_COUNT;i++){ shapes.push({x:Math.random()*gw,y:Math.random()*gh,size:rand(0.02,0.06)*Math.min(gw,gh),ax:Math.random()*6.28,ay:Math.random()*6.28,sax:rand(-0.006,0.006)*(reduce?0.2:1),say:rand(-0.006,0.006)*(reduce?0.2:1),vx:rand(-0.03,0.03)*(reduce?0.2:1),vy:rand(-0.02,0.02)*(reduce?0.2:1),colK:Math.random()<0.5?0:1,is3d:Math.random()<0.6,solid:SOLIDS[Math.floor(Math.random()*SOLIDS.length)],sides:3+Math.floor(Math.random()*4),star:Math.random()<0.4,spin:Math.random()*6.28,sspin:rand(-0.02,0.02)*(reduce?0.2:1)}); }
+}
+
+function moonAge(){ var syn=29.53058867,known=Date.UTC(2000,0,6,18,14),age=((Date.now()-known)/86400000)%syn; if(age<0)age+=syn; return age/syn; }
+function drawMoon(mx,my,R){
+  var d=deepX,f=moonAge(),lit=Math.sin(f*Math.PI),bright=anyFlag("moonBright")?1.4:1;
+  d.save();
+  var halo=d.createRadialGradient(mx,my,0,mx,my,R*3.4);
+  halo.addColorStop(0,"rgba(200,218,255,"+((0.10+0.16*lit)*bright)+")"); halo.addColorStop(1,"rgba(200,218,255,0)");
+  d.fillStyle=halo; d.beginPath(); d.arc(mx,my,R*3.4,0,6.283); d.fill();
+  d.fillStyle="rgba(226,235,255,0.95)"; d.beginPath(); d.arc(mx,my,R,0,6.283); d.fill();
+  d.fillStyle="rgba(150,168,205,0.22)"; d.beginPath(); d.arc(mx-R*0.25,my-R*0.15,R*0.30,0,6.283); d.fill();
+  var dd=f<0.5?-2*R*(f/0.5):2*R*((1-f)/0.5);
+  d.beginPath(); d.arc(mx,my,R,0,6.283); d.clip(); d.fillStyle="rgba(3,4,11,0.94)"; d.beginPath(); d.arc(mx+dd,my,R*1.02,0,6.283); d.fill();
+  d.restore();
+}
+/* ② タップされた星座を30秒間、線で強調表示する状態 */
+var highlightedCons=null, highlightUntil=0, highlightTimer=null;
+
+function drawConstellations(time){
+  var d=deepX; d.globalCompositeOperation="lighter"; var i,j;
+  var now=Date.now(), showHL=highlightedCons && now<highlightUntil;
+  for(i=0;i<constels.length;i++){
+    var c=constels[i],cx=c.fx*gw,cy=c.fy*gh,spread=Math.min(gw,gh)*(c.z?0.055:0.038);
+    var isHL = showHL && c===highlightedCons;
+    var tw=reduce?0.5:0.5+Math.sin(time*0.001*c.sp+c.ph)*0.32; if(tw<0.1)tw=0.1;
+    var col=c.z?curAccent:curStar,lineA=(c.z?0.26:0.14)*tw,dotA=(c.z?0.9:0.55)*tw;
+    if(isHL){
+      /* 残り時間に応じてフェードアウト(最後の2秒で自然に薄れる) */
+      var remain=(highlightUntil-now)/1000, fadeK=remain<2?Math.max(0,remain/2):1;
+      var hlCol=[255,244,214]; /* 強調時は温かい白金色に統一(星座の種類を問わず視認性を優先) */
+      /* 対策(訂正): ライトアップはほぼ無しに。星の光暈は廃止し、
+         線と、ごく小さな点だけで構成を示す控えめな表現にする。 */
+      d.lineWidth=1.6; d.strokeStyle=rgba(hlCol,0.75*fadeK); d.beginPath();
+      for(j=0;j<c.nodes.length;j++){ var px=cx+c.nodes[j][0]*spread,py=cy+c.nodes[j][1]*spread; if(j===0)d.moveTo(px,py); else d.lineTo(px,py); }
+      d.stroke();
+      for(j=0;j<c.nodes.length;j++){
+        var qx2=cx+c.nodes[j][0]*spread,qy2=cy+c.nodes[j][1]*spread;
+        d.fillStyle=rgba(hlCol,0.7*fadeK); d.beginPath(); d.arc(qx2,qy2,1.1,0,6.283); d.fill();
+      }
+      continue; /* 強調描画で代替したので通常描画はスキップ */
+    }
+    d.lineWidth=1; d.strokeStyle=rgba(col,lineA); d.beginPath();
+    for(j=0;j<c.nodes.length;j++){ var px=cx+c.nodes[j][0]*spread,py=cy+c.nodes[j][1]*spread; if(j===0)d.moveTo(px,py); else d.lineTo(px,py); }
+    d.stroke();
+    for(j=0;j<c.nodes.length;j++){ var qx=cx+c.nodes[j][0]*spread,qy=cy+c.nodes[j][1]*spread; d.fillStyle=rgba(col,dotA); d.beginPath(); d.arc(qx,qy,(c.z?1.2:0.8),0,6.283); d.fill(); }
+    if(c.z){ d.fillStyle=rgba(curAccent,0.16*tw); d.beginPath(); d.arc(cx,cy,spread*0.9,0,6.283); d.fill(); }
+  }
+  d.globalCompositeOperation="source-over";
+}
+function drawShape(s){
+  var d=deepX; s.ax+=s.sax; s.ay+=s.say; s.spin+=s.sspin;
+  if(!reduce){ s.x+=s.vx; s.y+=s.vy; if(s.x<-6)s.x=gw+6; if(s.x>gw+6)s.x=-6; if(s.y<-6)s.y=gh+6; if(s.y>gh+6)s.y=-6; }
+  var col=s.colK?curAccent:curStar; d.globalCompositeOperation="lighter";
+  if(s.is3d){
+    var ca=Math.cos(s.ax),sa=Math.sin(s.ax),cb=Math.cos(s.ay),sb=Math.sin(s.ay),v=s.solid.v,P=[],i;
+    for(i=0;i<v.length;i++){ var x=v[i][0],y=v[i][1],z=v[i][2],y1=y*ca-z*sa,z1=y*sa+z*ca,x1=x*cb+z1*sb,z2=-x*sb+z1*cb,pp=1/(1+z2*0.4); P.push([s.x+x1*s.size*pp,s.y+y1*s.size*pp,z2]); }
+    var e=s.solid.e; d.lineWidth=1;
+    for(i=0;i<e.length;i++){ var A=P[e[i][0]],B=P[e[i][1]],depth=(A[2]+B[2])*0.5,a=0.10+(depth+1)*0.12; d.strokeStyle=rgba(col,a); d.beginPath(); d.moveTo(A[0],A[1]); d.lineTo(B[0],B[1]); d.stroke(); }
+  } else {
+    var n=s.sides,R=s.size,j; d.lineWidth=1; d.strokeStyle=rgba(col,0.24); d.beginPath();
+    for(j=0;j<=n;j++){ var ang=s.spin+j/n*6.283,rr=s.star?(j%2?R*0.45:R):R,px=s.x+Math.cos(ang)*rr,py=s.y+Math.sin(ang)*rr; if(j===0)d.moveTo(px,py); else d.lineTo(px,py); }
+    d.stroke();
+  }
+}
+function drawNightSky(){
+  var d=deepX; d.globalCompositeOperation="source-over";
+  var g=d.createLinearGradient(0,0,0,gh);
+  g.addColorStop(0,"rgba(4,6,18,0.55)"); g.addColorStop(0.4,"rgba(7,10,22,0.13)");
+  g.addColorStop(0.72,"rgba(9,13,28,0.11)"); g.addColorStop(1,"rgba(12,16,34,0.5)");
+  d.fillStyle=g; d.fillRect(0,0,gw,gh);
+}
+function drawDeep(time){
+  var d=deepX; d.setTransform(1,0,0,1,0,0); d.globalCompositeOperation="source-over";
+  d.fillStyle=rgba(curDeep,1); d.fillRect(0,0,gw,gh);
+  /* ① 回転する天の川(最奥) */
+  if(mwC){ d.save(); d.translate(gw/2,gh/2); d.rotate(reduce?0:time*0.000012); d.globalCompositeOperation="lighter"; d.globalAlpha=0.85; d.drawImage(mwC,-mwC.width/2,-mwC.height/2); d.globalAlpha=1; d.restore(); }
+  /* ② 沈んだ宇宙 */
+  d.globalCompositeOperation="lighter";
+  var strong=anyFlag("nebStrong")?1.7:1,k;
+  for(k=0;k<curNeb.length;k++){ var ang=time*0.00003+k*2.2,nx=gw*0.5+Math.cos(ang)*gw*0.22,ny=gh*0.5+Math.sin(ang*1.3)*gh*0.2,rr=Math.max(gw,gh)*0.5; var g=d.createRadialGradient(nx,ny,0,nx,ny,rr); g.addColorStop(0,rgba(curNeb[k],0.15*strong)); g.addColorStop(1,rgba(curNeb[k],0)); d.fillStyle=g; d.beginPath(); d.arc(nx,ny,rr,0,6.283); d.fill(); }
+  drawMoon(gw*0.78, gh*0.22, Math.max(3,gw*0.05));
+  d.globalCompositeOperation="lighter";
+  var i;
+  for(i=0;i<dstars.length;i++){ var s=dstars[i]; if(!reduce){ s.x+=s.drift; if(s.x>gw+2)s.x=-2; } var a=reduce?s.base:s.base+Math.sin(time*0.001*s.sp+s.ph)*s.tw; if(a<0.03)a=0.03; if(a>1)a=1; var col=s.kind===0?curStar:(s.kind===1?curAccent:[255,200,200]); if(s.glow){ var gg=d.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*3.2); gg.addColorStop(0,rgba(col,a*0.5)); gg.addColorStop(1,rgba(col,0)); d.fillStyle=gg; d.beginPath(); d.arc(s.x,s.y,s.r*3.2,0,6.283); d.fill(); } d.fillStyle=rgba(col,a); d.beginPath(); d.arc(s.x,s.y,s.r,0,6.283); d.fill(); }
+  drawConstellations(time);
+  for(i=0;i<shapes.length;i++) drawShape(shapes[i]);
+  /* ③ 夜空のグラデーション(最前) */
+  drawNightSky();
+  d.globalCompositeOperation="source-over";
+}
+
+function stepWater(){
+  var g=gw,x,y,o,i,v,C=cur,Pp=prv,dsh=WATER.damp;
+  for(y=1;y<gh-1;y++){ o=y*g; for(x=1;x<g-1;x++){ i=o+x; v=((C[i-1]+C[i+1]+C[i-g]+C[i+g])>>1)-Pp[i]; v-=(v>>dsh); Pp[i]=v; } }
+  var t=cur; cur=prv; prv=t;
+}
+function renderWater(){
+  var g=gw,C=cur,deep=deepData,od=outImg.data,disp=WATER.disp,emb=WATER.emboss,base=WATER.base,rk=WATER.revealK,mb=WATER.maxBright;
+  var x,y,o,i,xo,yo,sx,sy,si,di,slope,bright,add,r,gg,b;
+  for(y=1;y<gh-1;y++){ o=y*g;
+    for(x=1;x<g-1;x++){ i=o+x; xo=C[i-1]-C[i+1]; yo=C[i-g]-C[i+g];
+      sx=x+(xo>>disp); sy=y+(yo>>disp); if(sx<0)sx=0; else if(sx>=g)sx=g-1; if(sy<0)sy=0; else if(sy>=gh)sy=gh-1;
+      si=(sy*g+sx)<<2; slope=(xo<0?-xo:xo)+(yo<0?-yo:yo); bright=base+slope*rk; if(bright>mb)bright=mb; add=(xo>>emb); di=i<<2;
+      r=deep[si]*bright+add+4; if(r<0)r=0; else if(r>255)r=255;
+      gg=deep[si+1]*bright+add+5; if(gg<0)gg=0; else if(gg>255)gg=255;
+      b=deep[si+2]*bright+add+9; if(b<0)b=0; else if(b>255)b=255;
+      od[di]=r; od[di+1]=gg; od[di+2]=b;
+    }
+  }
+  outX.putImageData(outImg,0,0);
+}
+
+function drop(px,py,amp){
+  var gx=Math.round(px/W*gw),gy=Math.round(py/H*gh),rad=Math.max(2,Math.round(gw*0.018)),xx,yy;
+  for(yy=-rad;yy<=rad;yy++)for(xx=-rad;xx<=rad;xx++){ var nx=gx+xx,ny=gy+yy; if(nx<1||ny<1||nx>=gw-1||ny>=gh-1)continue; var dd=Math.sqrt(xx*xx+yy*yy); if(dd>rad)continue; cur[ny*gw+nx]+=Math.round(amp*(1-dd/rad)); }
+}
+function crest(x,y,num,col){ for(var i=0;i<num;i++){ if(sparks.length>=MAX_SPARKS)sparks.shift(); var a=Math.random()*6.283,sp=rand(0.4,1.6)*dpr; sparks.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:rand(0.014,0.03),size:rand(0.5,1.4)*dpr,col:col}); } }
+function nearestConstellation(px,py){ var gx=px/W*gw,gy=py/H*gh,best=1e9,bi=-1,i; for(i=0;i<constels.length;i++){ var c=constels[i],dx=c.fx*gw-gx,dy=c.fy*gh-gy,d=dx*dx+dy*dy; if(d<best){best=d;bi=i;} } return bi>=0?constels[bi]:null; }
+function touchAt(x,y,big,isAuto){
+  drop(x,y, big?WATER.dropBig:WATER.dropTap); crest(x,y, big?14:6, curAccent); count++; updateCount();
+  var c=nearestConstellation(x,y); if(c)showCons(c);
+  if(big)playMelody(x,y); else playTouch(x,y,isAuto);
+}
+
+/* --- 流れ星（落ちて着水し、波紋と音を生む） --- */
+function spawnSkyMeteor(opt){
+  /* 訂正: 最初の数秒(イントロ)は流れ星・流星群も一切発生させない。
+     再生前(appStartTime未設定)、または再生からINTRO_GRACE_MS以内は抑制。 */
+  if(appStartTime===0 || (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
+  if(skyMeteors.length>44) return;
+  opt=opt||{};
+  /* 発生位置：上辺・左右のどこからでも */
+  var edge=Math.random(), sx, sy;
+  if(edge<0.5){ sx=rand(-0.15,1.15)*W; sy=rand(-0.35,-0.02)*H; }          /* 上から */
+  else if(edge<0.78){ sx=rand(-0.2,0.1)*W; sy=rand(-0.3,0.5)*H; }          /* 左から */
+  else { sx=rand(0.9,1.2)*W; sy=rand(-0.3,0.5)*H; }                        /* 右から */
+  /* 着地位置：画面のほぼどこでも。低確率で「横切るだけ」 */
+  var tx, ty, pass=false;
+  if(opt.radiant){                                                        /* ① 流星群：着弾地点を完全にランダム化(群れでも各自バラバラの場所へ落ちる) */
+    tx=rand(0.05,0.95)*W; ty=rand(0.12,0.78)*H;
+  } else if(Math.random()<METEOR.passChance){                             /* 横切るだけ（着地しない） */
+    pass=true;
+    var ang=Math.atan2((H*0.5-sy),(W*0.5-sx))+rand(-0.5,0.5), far=Math.sqrt(W*W+H*H)*rand(1.1,1.5);
+    tx=sx+Math.cos(ang)*far; ty=sy+Math.sin(ang)*far;
+  } else {
+    tx=rand(0.05,0.95)*W; ty=rand(0.12,0.78)*H;
+  }
+  if(!pass){ if(tx<0.02*W)tx=0.02*W; if(tx>0.98*W)tx=0.98*W; if(ty<0.06*H)ty=0.06*H; if(ty>0.9*H)ty=0.9*H; }
+  var dx=tx-sx, dy=ty-sy, dist=Math.sqrt(dx*dx+dy*dy); if(dist<40*dpr)dist=40*dpr;
+  /* ② 落下スピードのランダム性に、今までより遅いパターンをいくつか追加。
+     単純な連続乱数ではなく、いくつかの「速度帯」から重み付きで選ぶことで、
+     時折はっきりと遅い流れ星が混ざるようにする。
+     - 通常帯(0.6〜2.4倍): 主流。これまで通りの速さの分布
+     - ゆっくり帯(0.22〜0.5倍): 時々現れる、はっきり遅い流れ星
+     - とてもゆっくり帯(0.10〜0.25倍): まれに現れる、非常にゆっくりと尾を引く流れ星 */
+  var speedRoll=Math.random(), speedMul;
+  if(speedRoll<0.12)      speedMul=rand(0.10,0.25);  /* とてもゆっくり(12%) */
+  else if(speedRoll<0.34) speedMul=rand(0.22,0.50);  /* ゆっくり(22%) */
+  else                     speedMul=rand(0.6,2.4);    /* 通常(66%) */
+  var speed=rand(METEOR.speedMin,METEOR.speedMax)*dpr*speedMul;
+  skyMeteors.push({x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,spd:speed,tx:tx,ty:ty,trav:0,dist:dist,landed:false,life:1,pass:pass});
+}
+/* 低確率で「流星群」：同じ放射方向へ、少しずつ時間差で連続落下 */
+function spawnShower(){
+  var radiant=rand(0,6.283), reach=rand(0.5,1.2), nn=Math.floor(rand(METEOR.showerMin,METEOR.showerMax+1)), k;
+  for(k=0;k<nn;k++){
+    (function(d){ setTimeout(function(){ spawnSkyMeteor({radiant:radiant,reach:reach}); }, d); })(k*rand(METEOR.showerStagger,METEOR.showerStaggerMax));
+  }
+}
+function scheduleMeteor(){
+  setTimeout(function(){
+    if(Math.random()<METEOR.showerChance) spawnShower(); else spawnSkyMeteor();
+    scheduleMeteor();
+  }, rand(METEOR.gapMin,METEOR.gapMax));
+}
+
+/* --- 闇の奥行き（濃度違いの黒の層＋覗き込む闇＋前景の塵） --- */
+function seedDepth(){
+  veils=[]; var i;
+  for(i=0;i<DEPTH.veils;i++){ veils.push({ x:Math.random()*W, y:Math.random()*H, rx:rand(0.45,0.95)*W, ry:rand(0.32,0.72)*H, a:DEPTH.veilAlpha*rand(0.55,1.4), vx:rand(-0.09,0.09)*dpr*(0.6+i*0.2), vy:rand(-0.05,0.05)*dpr, tb:Math.random()<0.5?0:1 }); }
+  motes=[];
+  for(i=0;i<DEPTH.motes;i++){ var z=Math.random(); motes.push({ x:Math.random()*W, y:Math.random()*H, z:z, r:(0.6+z*2.4)*dpr, a:0.05+z*0.22, vy:(0.08+z*0.5)*dpr, vx:rand(-0.1,0.1)*dpr, ph:Math.random()*6.28, sp:rand(0.3,1.0), soft:z>0.62 }); }
+}
+function drawDepth(time){
+  var i;
+  /* 濃度違いの黒の層が漂う */
+  ctx.globalCompositeOperation="source-over";
+  for(i=0;i<veils.length;i++){
+    var v=veils[i];
+    if(!reduce){ v.x+=v.vx; v.y+=v.vy; }
+    if(v.x<-v.rx)v.x=W+v.rx; else if(v.x>W+v.rx)v.x=-v.rx;
+    if(v.y<-v.ry)v.y=H+v.ry; else if(v.y>H+v.ry)v.y=-v.ry;
+    var col=v.tb?"6,9,18":"0,0,2", R=v.rx;
+    var g=ctx.createRadialGradient(v.x,v.y,0,v.x,v.y,R);
+    g.addColorStop(0,"rgba("+col+","+v.a+")"); g.addColorStop(1,"rgba("+col+",0)");
+    ctx.save(); ctx.translate(v.x,v.y); ctx.scale(1,v.ry/v.rx); ctx.translate(-v.x,-v.y);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(v.x,v.y,R,0,6.283); ctx.fill(); ctx.restore();
+  }
+  /* 最深層の色：まず画面全体に淡くのせる */
+  var ab=Math.round(curDeep[0])+","+Math.round(curDeep[1])+","+Math.round(curDeep[2]);
+  var glc=[Math.min(255,curDeep[0]*2.4),Math.min(255,curDeep[1]*2.4),Math.min(255,curDeep[2]*2.4)];
+  ctx.globalCompositeOperation="lighter";
+  ctx.fillStyle=rgba(glc,DEPTH.wash); ctx.fillRect(0,0,W,H);
+  /* 覗き込む闇：周縁と底ほど深い（控えめに） */
+  ctx.globalCompositeOperation="source-over";
+  var vg=ctx.createRadialGradient(W*0.5,H*0.34,0,W*0.5,H*0.34,Math.max(W,H)*0.82);
+  vg.addColorStop(0,"rgba("+ab+",0)"); vg.addColorStop(0.5,"rgba("+ab+",0)"); vg.addColorStop(1,"rgba("+ab+","+DEPTH.abyss+")");
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  var bg=ctx.createLinearGradient(0,H*0.5,0,H);
+  bg.addColorStop(0,"rgba("+ab+",0)"); bg.addColorStop(1,"rgba("+ab+","+(DEPTH.abyss*0.5)+")");
+  ctx.fillStyle=bg; ctx.fillRect(0,H*0.5,W,H*0.5);
+  /* 底から立ちのぼる色（控えめに） */
+  ctx.globalCompositeOperation="lighter";
+  var dgl=ctx.createLinearGradient(0,H,0,H*0.45);
+  dgl.addColorStop(0,rgba(glc,0.08)); dgl.addColorStop(1,rgba(glc,0));
+  ctx.fillStyle=dgl; ctx.fillRect(0,H*0.45,W,H*0.55);
+  /* 水面のほのかな光（最上部・上空からの光） */
+  ctx.globalCompositeOperation="lighter";
+  var sg=ctx.createLinearGradient(0,0,0,H*0.3);
+  sg.addColorStop(0,rgba(curStar,DEPTH.surface)); sg.addColorStop(1,rgba(curStar,0));
+  ctx.fillStyle=sg; ctx.fillRect(0,0,W,H*0.3);
+  /* 外周に薄い黒を重ねる（黒のうちから色が覗く） */
+  ctx.globalCompositeOperation="source-over";
+  var rim=ctx.createRadialGradient(W*0.5,H*0.42,0,W*0.5,H*0.42,Math.max(W,H)*0.55);
+  rim.addColorStop(0,"rgba(0,0,1,0)"); rim.addColorStop(0.42,"rgba(0,0,1,0)"); rim.addColorStop(1,"rgba(0,0,1,"+DEPTH.rim+")");
+  ctx.fillStyle=rim; ctx.fillRect(0,0,W,H);
+  /* さらに内側から、淡い黒をもう一枚重ねて外周を締める */
+  var rim2=ctx.createRadialGradient(W*0.5,H*0.44,0,W*0.5,H*0.44,Math.max(W,H)*0.46);
+  rim2.addColorStop(0,"rgba(0,0,1,0)"); rim2.addColorStop(0.35,"rgba(0,0,1,0)"); rim2.addColorStop(1,"rgba(0,0,1,"+DEPTH.rim2+")");
+  ctx.fillStyle=rim2; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation="lighter";
+  /* マリンスノー（前景の舞う塵） */
+  for(i=0;i<motes.length;i++){
+    var mo=motes[i];
+    if(!reduce){ mo.y+=mo.vy; mo.x+=mo.vx+Math.sin(time*0.001*mo.sp+mo.ph)*0.12*dpr; }
+    if(mo.y>H+6)mo.y=-6; if(mo.x<-6)mo.x=W+6; else if(mo.x>W+6)mo.x=-6;
+    var tw=mo.a*(0.6+0.4*Math.sin(time*0.0018*mo.sp+mo.ph)); if(tw<0)tw=0;
+    if(mo.soft){ var mg=ctx.createRadialGradient(mo.x,mo.y,0,mo.x,mo.y,mo.r*2.4); mg.addColorStop(0,rgba(curStar,tw)); mg.addColorStop(1,rgba(curStar,0)); ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(mo.x,mo.y,mo.r*2.4,0,6.283); ctx.fill(); }
+    else { ctx.fillStyle=rgba(curStar,tw); ctx.beginPath(); ctx.arc(mo.x,mo.y,mo.r,0,6.283); ctx.fill(); }
+  }
+  ctx.globalCompositeOperation="source-over";
+}
+
+/* --- メインループ --- */
+function frame(time){
+  var tS=[0,0,0],tA=[0,0,0],tN0=[0,0,0],tN1=[0,0,0],tD=[0,0,0],i;
+  var cmix=(typeof colorMix!=='undefined'&&colorMix&&colorMix.length)?colorMix:active;
+  for(i=0;i<cmix.length;i++){ var mm=MOODS[cmix[i]]; tS[0]+=mm.star[0];tS[1]+=mm.star[1];tS[2]+=mm.star[2]; tA[0]+=mm.accent[0];tA[1]+=mm.accent[1];tA[2]+=mm.accent[2]; var n0=mm.neb[0],n1=mm.neb[Math.min(1,mm.neb.length-1)]; tN0[0]+=n0[0];tN0[1]+=n0[1];tN0[2]+=n0[2]; tN1[0]+=n1[0];tN1[1]+=n1[1];tN1[2]+=n1[2]; var dp=mm.deep; tD[0]+=dp[0];tD[1]+=dp[1];tD[2]+=dp[2]; }
+  var na=cmix.length;
+  lerp3(curStar,[tS[0]/na,tS[1]/na,tS[2]/na],0.05); lerp3(curAccent,[tA[0]/na,tA[1]/na,tA[2]/na],0.05);
+  lerp3(curNeb[0],[tN0[0]/na,tN0[1]/na,tN0[2]/na],0.05); lerp3(curNeb[1],[tN1[0]/na,tN1[1]/na,tN1[2]/na],0.05);
+  lerp3(curDeep,[tD[0]/na,tD[1]/na,tD[2]/na],0.04);   /* 最深層の色をインクのように混ぜる */
+
+  stepWater(); drawDeep(time); deepData=deepX.getImageData(0,0,gw,gh).data; renderWater();
+
+  ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation="source-over";
+  ctx.fillStyle="rgb("+Math.round(curDeep[0]*0.7)+","+Math.round(curDeep[1]*0.7)+","+Math.round(curDeep[2]*0.7)+")"; ctx.fillRect(0,0,W,H); ctx.drawImage(outC,0,0,W,H);
+
+  ctx.globalCompositeOperation="lighter";
+  if(down&&!moved){ var held=Date.now()-startT; if(held>240){ var g2=Math.min((held-240)/300,1); ctx.lineWidth=1.4*dpr; ctx.strokeStyle=rgba(curStar,0.18+g2*0.36); ctx.beginPath(); ctx.arc(startX,startY,(8+g2*24)*dpr,0,6.283); ctx.stroke(); } }
+  if(down&&moved){ var hg=ctx.createRadialGradient(lastX,lastY,0,lastX,lastY,12*dpr); hg.addColorStop(0,rgba(curStar,0.35)); hg.addColorStop(1,rgba(curStar,0)); ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(lastX,lastY,12*dpr,0,6.283); ctx.fill(); }
+
+  /* 流れ星（軌跡になぞり水音を同期。着地でタップ音へ） */
+  var mm2=0, flyX=-1, flyY=-1;
+  for(i=0;i<skyMeteors.length;i++){
+    var me=skyMeteors[i];
+    if(!me.landed){
+      me.x+=me.vx; me.y+=me.vy; me.trav+=me.spd;
+      if(flyX<0){ flyX=me.x; flyY=me.y; }
+      var ux=me.vx/me.spd, uy=me.vy/me.spd, tl=52*dpr, txx=me.x-ux*tl, tyy=me.y-uy*tl;
+      var lg=ctx.createLinearGradient(me.x,me.y,txx,tyy); lg.addColorStop(0,rgba(curStar,0.95)); lg.addColorStop(1,rgba(curStar,0));
+      ctx.strokeStyle=lg; ctx.lineWidth=1.8*dpr; ctx.beginPath(); ctx.moveTo(me.x,me.y); ctx.lineTo(txx,tyy); ctx.stroke();
+      var hgm=ctx.createRadialGradient(me.x,me.y,0,me.x,me.y,5*dpr); hgm.addColorStop(0,rgba(curStar,0.9)); hgm.addColorStop(1,rgba(curStar,0)); ctx.fillStyle=hgm; ctx.beginPath(); ctx.arc(me.x,me.y,5*dpr,0,6.283); ctx.fill();
+      if(me.trav>=me.dist){
+        if(me.pass){ /* 横切るだけ：着水も音もなく退出（配列から落とす） */ }
+        else {
+          me.landed=true; me.life=1; drop(me.tx,me.ty,WATER.dropTap*1.05); crest(me.tx,me.ty,10,curAccent); count++; updateCount(); fvStop(meteorFV);
+          /* 流星群の着水音は重複(重なって鳴ること)を許可するが、
+             直前の着水音から一定時間未満しか経っていない場合は、
+             音量を下げるのではなく「今回の音を鳴らさない」ことで間引く。
+             その間隔は固定0.3秒ではなく、毎回0.5〜1.0秒の範囲でランダムに
+             選び直す(nextMeteorSoundGapMs)。単調にならず、時に間隔が
+             詰まり気味・時に間延びする、有機的な鳴り方になる。
+             波紋・きらめきなどの視覚効果は間引かず、常に発生させる。 */
+          var nowMs=Date.now();
+          if(nowMs-lastMeteorSoundAt>=nextMeteorSoundGapMs){
+            lastMeteorSoundAt=nowMs;
+            nextMeteorSoundGapMs=rand(500,1000);
+            playTouch(me.tx,me.ty);
+          }
+          skyMeteors[mm2++]=me;
+        }
+      } else { skyMeteors[mm2++]=me; }
+    } else {
+      me.life-=0.045;
+      if(me.life>0){ ctx.strokeStyle=rgba(curAccent,me.life*0.5); ctx.lineWidth=1.5*dpr; ctx.beginPath(); ctx.arc(me.tx,me.ty,(1-me.life)*30*dpr,0,6.283); ctx.stroke(); skyMeteors[mm2++]=me; }
+    }
+  }
+  skyMeteors.length=mm2;
+  if(flyX>=0) fvMove(meteorFV,flyX,flyY,0.125); else fvStop(meteorFV);   /* なぞり音と同じ音量に統一(底上げ) */
+
+  var s2=0;
+  for(i=0;i<sparks.length;i++){ var sp=sparks[i]; sp.x+=sp.vx; sp.y+=sp.vy; sp.vx*=0.97; sp.vy*=0.97; sp.life-=sp.decay; if(sp.life>0){ ctx.fillStyle=rgba(sp.col,sp.life*0.8); ctx.beginPath(); ctx.arc(sp.x,sp.y,sp.size*sp.life,0,6.283); ctx.fill(); sparks[s2++]=sp; } }
+  sparks.length=s2; ctx.globalCompositeOperation="source-over";
+
+  drawDepth(time);
+
+  /* 9ボタンの点灯/明滅を曲の進行に同期(数フレームおきで十分) */
+  if(!frame._mc)frame._mc=0; if((++frame._mc%6)===0){ try{ updateMoodDisplay(); }catch(e){} }
+
+  requestAnimationFrame(frame);
+}
+
+/* --- 入力 --- */
+var down=false,moved=false,startX=0,startY=0,startT=0,lastX=0,lastY=0,wakeAcc=0;
+function P(e){ var x,y; if(e.touches&&e.touches.length){x=e.touches[0].clientX;y=e.touches[0].clientY;} else if(e.changedTouches&&e.changedTouches.length){x=e.changedTouches[0].clientX;y=e.changedTouches[0].clientY;} else {x=e.clientX;y=e.clientY;} return {x:x*dpr,y:y*dpr}; }
+function onDown(e){ ensureAudio(); dismissHero(); var p=P(e); down=true; moved=false; startX=p.x; startY=p.y; lastX=p.x; lastY=p.y; startT=Date.now(); if(e.cancelable)e.preventDefault(); }
+function onMove(e){ if(!down)return; var p=P(e); var dx=p.x-startX,dy=p.y-startY; if(!moved&&(dx*dx+dy*dy)>(10*dpr)*(10*dpr))moved=true;
+  if(moved){ var seg=Math.sqrt((p.x-lastX)*(p.x-lastX)+(p.y-lastY)*(p.y-lastY)); wakeAcc+=seg; if(wakeAcc>8*dpr){ wakeAcc=0; drop(p.x,p.y,WATER.dropWake); if(Math.random()<0.5)crest(p.x,p.y,1,curStar); playDrag(p.x,p.y); } }
+  lastX=p.x; lastY=p.y; if(e.cancelable)e.preventDefault(); }
+function onUp(e){ if(!down)return; var p=P(e),held=Date.now()-startT; if(moved){ drop(p.x,p.y,WATER.dropTap*0.6); stopDrag(); } else if(held>520){ touchAt(startX,startY,true); } else { touchAt(startX,startY,false); } down=false; if(e.cancelable)e.preventDefault(); }
+/* 連打時に稀にtouchendが届かず(touchcancel/イベント取りこぼし)、downがtrueのまま
+   固着すると、以後のタップが正しく判定されずタップ音が鳴らなくなることがある。
+   保険として touchcancel も onUp と同様に処理し、down を確実に解放する。 */
+function onCancel(e){ if(down){ down=false; moved=false; stopDrag(); } }
+cv.addEventListener("mousedown",onDown,false); window.addEventListener("mousemove",onMove,false); window.addEventListener("mouseup",onUp,false);
+cv.addEventListener("touchstart",onDown,{passive:false}); cv.addEventListener("touchmove",onMove,{passive:false}); cv.addEventListener("touchend",onUp,{passive:false});
+cv.addEventListener("touchcancel",onCancel,{passive:false}); window.addEventListener("blur",onCancel,false);
+window.addEventListener("keydown",function(e){ if(e.code==="Space"||e.keyCode===32){ dismissHero(); touchAt(rand(0.15,0.85)*W,rand(0.15,0.7)*H,false); e.preventDefault(); } },false);
+
+/* --- 音（常時オン。触れずとも淡い持続音が流れる） --- */
+var AC=null,master=null;
+function ensureAudio(){ if(!AC){ try{ var C=window.AudioContext||window.webkitAudioContext; AC=new C(); master=AC.createGain(); master.gain.value=MASTER_GAIN; master.connect(AC.destination); }catch(e){ AC=null; } } if(AC&&AC.state==="suspended"){ try{AC.resume();}catch(e){} } }
+/* iOS/モバイルは「操作の中で実際に音を出す」まで無音のまま。最初の操作で確実に解錠する */
+function unlockAudio(){
+  ensureAudio(); if(!AC) return;
+  try{ var b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
+  if(AC.state==="suspended"){ try{AC.resume();}catch(e){} }
+}
+/* 最初のあらゆる操作で解錠を試みる（window全体に張る） */
+function armUnlock(){
+  var h=function(){ unlockAudio(); };
+  window.addEventListener("touchstart",h,{passive:true});
+  window.addEventListener("touchend",h,{passive:true});
+  window.addEventListener("mousedown",h,false);
+  window.addEventListener("click",h,false);
+  window.addEventListener("keydown",h,false);
+  document.addEventListener("visibilitychange",function(){ if(!document.hidden&&AC&&AC.state==="suspended"){ try{AC.resume();}catch(e){} } },false);
+}
+function profile(){ var oct=0,sset={},iset={},i,j; for(i=0;i<active.length;i++){ var au=MOODS[active[i]].au; oct+=au.oct; for(j=0;j<au.scale.length;j++)sset[au.scale[j]]=1; for(j=0;j<au.insts.length;j++)iset[au.insts[j]]=1; } oct=Math.round(oct/active.length); var scale=[],k; for(k in sset)scale.push(parseFloat(k)); scale.sort(function(a,b){return a-b;}); var insts=[],mm; for(mm in iset)insts.push(parseInt(mm,10)); if(!scale.length)scale=[1,9/8,5/4,3/2,5/3]; if(!insts.length)insts=[0]; return {oct:oct,scale:scale,insts:insts}; }
+function pitchAt(y,prof){ var n=prof.scale.length*OCTAVES,idx=Math.floor((1-y/H)*n); if(idx<0)idx=0; if(idx>n-1)idx=n-1; var oct=Math.floor(idx/prof.scale.length)+prof.oct,deg=idx%prof.scale.length; return BASE_FREQ*Math.pow(2,oct)*prof.scale[deg]; }
+function outNode(x){ if(!AC)return null; if(AC.createStereoPanner){ var p=AC.createStereoPanner(); var v=(x/W)*2-1; if(v<-0.8)v=-0.8; if(v>0.8)v=0.8; p.pan.value=v; p.connect(master); return p; } return master; }
+function voice(freq,x,delay,dur,gain,type,lp){
+  if(!AC)return;
+  if(appStartTime>0 && (Date.now()-appStartTime)<INTRO_GRACE_MS)return; /* イントロ中は無音(旋律・流れ星単音などdrag以外の全音源の土台) */
+  try{ var t0=AC.currentTime+(delay||0),o=AC.createOscillator(),g=AC.createGain(),dest=outNode(x),node=o; o.type=type; o.frequency.value=freq*(1+rand(-0.004,0.004)); if(lp){ var f=AC.createBiquadFilter(); f.type="lowpass"; f.frequency.value=lp; o.connect(f); node=f; } node.connect(g); g.connect(dest); g.gain.setValueAtTime(0.0001,t0); g.gain.linearRampToValueAtTime(gain,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur); o.start(t0); o.stop(t0+dur+0.05); }catch(e){} }
+function playInst(id,f,x,delay){ if(id===1){ voice(f,x,delay,rand(1.1,1.5),0.045,"sine",0); voice(f*2.76,x,delay,rand(0.5,0.8),0.015,"sine",0); } else if(id===2){ voice(f,x,delay,rand(0.22,0.36),0.06,"triangle",1400); } else if(id===3){ voice(f,x,delay,rand(0.16,0.28),0.02,"square",900); } else { voice(f,x,delay,rand(0.6,1.0),0.05,"sine",0); } }
+/* 金属楽器を撫で鳴らすような音：柔らかく立ち上がり、非整数倍音を残して長く消える */
+/* ③ 複数指の同時タップで共鳴が重なり音が大きくなりすぎる問題への対策。
+   「本物の指タップ」だけを対象に、直近の短い時間窓(0.6秒)に何回
+   タップされたかを数え、その本数で 1/n 正規化する。
+   楽器の自動切り替え演出(isAuto)はこの集計に一切参加させない —
+   これが「楽器が多いとタップ音が常に小さい」の直接原因だったため。 */
+var realTapTimes=[];
+/* タップ音の音色を、現在オンになっている楽器の中からランダムに選ぶ。
+   INSTRUMENTS配列(9楽器の定義)のwvフィールドをそのまま使うので、
+   BGMの楽器編成が変われば、タップ音の音色バリエーションも自動的に追従する。
+   
+   注意点(偏り対策): Flute/Thereminはwv:'sine'で専用波形を持たないため、
+   これらを候補にそのまま含めると「サイン→フォールバックでmarimba」という
+   経路が2つできてしまい、marimbaだけ見かけ上2倍選ばれやすくなっていた。
+   対策として、まず「今オンで、かつ専用波形(sine以外)を持つ楽器」だけを
+   候補にする。該当がなければ(全部sine系がオン等)、その時だけ全体から選ぶ。 */
+/* PeriodicWave はデフォルトで波形のピーク振幅=1になるよう正規化される。
+   倍音を多く/強く持つ楽器ほど正規化で基音が押し下げられ、結果として
+   楽器ごとに体感音量へ無視できない差が生まれる(実測: Hangdrumは
+   Shakuhachiの約半分の音量)。これがタップ連打時に「音が聞こえない
+   ことがある」の正体だった。楽器ごとの音量差を打ち消す補正係数。
+   値が大きいほど、その楽器は正規化で音量が下がりやすいので強めに補う。 */
+var TAP_TIMBRE_GAIN={
+  piano:1.20, marimba:1.22, harp:1.35, hangdrum:2.05,
+  shakuhachi:1.0, glass:1.10, armonica:1.20
+};
+function pickTapWave(){
+  if(typeof INSTRUMENTS==='undefined'||!INSTRUMENTS||!INSTRUMENTS.length) return {wave:getWave(AC,'marimba'), gainMul:TAP_TIMBRE_GAIN.marimba};
+  var candidates=[];
+  for(var i=0;i<INSTRUMENTS.length;i++){
+    if(instrOn[i]!==false && INSTRUMENTS[i].wv!=='sine') candidates.push(INSTRUMENTS[i]);
+  }
+  if(!candidates.length){
+    /* 専用波形を持つ楽器が1つもオンでない場合のみ、オンの楽器全体から選ぶ
+       (この場合はsine系しか無いのでmarimba代替になる) */
+    for(var j=0;j<INSTRUMENTS.length;j++){ if(instrOn[j]!==false) candidates.push(INSTRUMENTS[j]); }
+  }
+  if(!candidates.length) candidates=INSTRUMENTS; /* 念のため全消灯時のフォールバック */
+  var chosen=candidates[Math.floor(Math.random()*candidates.length)];
+  var w=getWave(AC, chosen.wv);
+  if(!w) return {wave:getWave(AC,'marimba'), gainMul:TAP_TIMBRE_GAIN.marimba}; /* sine系はmarimbaで代替 */
+  return {wave:w, gainMul:TAP_TIMBRE_GAIN[chosen.wv]||1.0};
+}
+/* 流星群の着水音: 直前の着水音からこの間隔(ms)未満なら鳴らさない(間引く)。
+   固定値ではなく、着水ごとに0.5〜1.0秒の範囲でランダムに再設定する。
+   波紋・きらめきなどの視覚効果はこの制限を受けず常に発生する。 */
+var lastMeteorSoundAt=0;
+var nextMeteorSoundGapMs=rand(500,1000);
+var TAP_WINDOW_MS=600;
+function registerRealTap(){
+  var now=Date.now();
+  realTapTimes.push(now);
+  /* 窓の外(古いタップ)を掃除 */
+  while(realTapTimes.length && now-realTapTimes[0]>TAP_WINDOW_MS) realTapTimes.shift();
+  return realTapTimes.length; /* 直近0.6秒以内の実タップ数(今回を含む) */
+}
+function voiceMetal(freq,x,gain,attack,release,isAuto){
+  if(!AC) return;
+  var inIntro = appStartTime>0 && (Date.now()-appStartTime)<INTRO_GRACE_MS;
+  if(inIntro) return;   /* 起動直後の数秒間はタップ音そのものを鳴らさない */
+  try{
+    /* ① 手動タップ(連打含む)は 1/n 正規化を行わない。常にフル音量で、
+       音の重複(オーバーラップ)を許可する。同時多発の抑制は
+       「複数指の同時タップ」ではなく「流星群の着水間隔」だけに限定する。 */
+    var normGain=gain;
+    /* ① 水滴音の波形を、BGMのMarimba(打楽器・水滴に近い減衰の速い澄んだ音)と
+       同じ PeriodicWave(getWave)から作る。純サイン波の重ね合わせをやめ、
+       オーケストラと "同じ素材から生まれた音" にすることで馴染ませる。
+       倍音の比率(1,2,3,4,6倍音)自体は従来のオクターブ・完全5度中心を維持
+       しつつ、波形そのものにMarimbaの音色的個性(温かい減衰感)を持たせる。 */
+    var t0=AC.currentTime, dest=outNode(x), parts=[[1,1.0],[2.0,0.5],[3.0,0.3],[4.0,0.16],[6.0,0.08]], i;
+    /* 現在オンになっている楽器(instrOn)の中からランダムに1つを選び、
+       その楽器の波形(wv)でタップ音を鳴らす。タップするたびに、
+       今BGMで鳴っている楽器のどれかの音色に変化する。
+       Flute/Theremin は wv:'sine' で getWave が null を返すため、
+       その場合は従来通り純サインにフォールバックする。 */
+    var picked=pickTapWave();
+    var tapWave=picked.wave, timbreGainMul=picked.gainMul||1.0;
+    for(i=0;i<parts.length;i++){
+      var o=AC.createOscillator(), g=AC.createGain();
+      if(tapWave){ o.setPeriodicWave(tapWave); } else { o.type="sine"; }
+      o.frequency.value=freq*parts[i][0]*(1+rand(-0.003,0.003));
+      o.connect(g); g.connect(dest);
+      /* 楽器ごとの正規化ロス(timbreGainMul)を補正して、どの音色が
+         選ばれても体感音量が揃うようにする */
+      var peak=Math.min(0.12, normGain*timbreGainMul*parts[i][1]), rel=release*(1-i*0.13); if(rel<0.2)rel=0.2;
+      g.gain.setValueAtTime(0.0001,t0);
+      g.gain.linearRampToValueAtTime(peak, t0+attack);                     /* フェードイン（ソフトアタック） */
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+attack+rel);          /* 長い金属的な余韻 */
+      o.start(t0); o.stop(t0+attack+rel+0.05);
+    }
+  }catch(e){}
+}
+function playTouch(x,y,isAuto){ ensureAudio(); var prof=profile(),f=pitchAt(y,prof); voiceMetal(f,x,0.042,rand(0.05,0.09),rand(1.8,3.0),isAuto); }  /* Marimba波形は倍音が分散し純サインより体感音量が小さく感じられるため、音量を補正(0.028→0.042)。1/n正規化は実タップのみ対象 */
+function playPluck(x,y){ ensureAudio(); var prof=profile(); playInst(2,pitchAt(y,prof)*0.5,x,0); }
+function playMeteor(x,y){ ensureAudio(); var prof=profile(),f=pitchAt(y,prof); voice(f,x,0,1.2,0.035,"sine",0); voice(f*2,x,0,0.6,0.012,"sine",0); }
+function playMelody(x,y){ ensureAudio(); var prof=profile(),n=3+Math.floor(Math.random()*3),full=prof.scale.length*OCTAVES,idx=Math.floor((1-y/H)*full); if(idx<0)idx=0; if(idx>full-1)idx=full-1; var step=[0,2,1,3,-1,4],k;
+  for(k=0;k<n;k++){ var ii=idx+step[k%step.length]+(k>3?prof.scale.length:0); if(ii<0)ii=0; if(ii>full-1)ii=full-1; var oct=Math.floor(ii/prof.scale.length)+prof.oct,deg=ii%prof.scale.length,f=BASE_FREQ*Math.pow(2,oct)*prof.scale[deg],id=prof.insts[Math.floor(Math.random()*prof.insts.length)]; playInst(id,f,x,k*0.14); }
+  voice(pitchAt(H*0.92,prof),x,0,1.6,0.04,"sine",0);
+}
+/* 漣・川の流れの水音：音源は破棄せず、ゲインの出し入れで滑らかにフェード */
+var noiseBuf=null;
+function makeNoise(){ if(noiseBuf)return noiseBuf; var len=AC.sampleRate*2, b=AC.createBuffer(1,len,AC.sampleRate), d=b.getChannelData(0), i; for(i=0;i<len;i++) d[i]=Math.random()*2-1; noiseBuf=b; return b; }
+/* ③ なぞり音の共鳴を、流れている音楽に馴染む協和音程に。
+   従来の 2.76(非整数=金属的で浮く)を排し、オクターブ・完全5度・
+   オクターブ+完全5度 という純正な倍音列にして音楽と溶け合わせる。 */
+var RES_RATIOS=[1, 1.5, 2.0, 3.0], RES_GAINS=[1, 0.55, 0.42, 0.24];
+function FlowVoice(){ return {res:null,noise:null,waterLP:null,tone:null,pan:null,gain:null,lfo:null,on:false}; }
+function fvEnsure(fv){
+  if(fv.res||!AC) return;
+  try{
+    fv.gain=AC.createGain(); fv.gain.gain.value=0.0001;                       /* フェード用エンベロープ */
+    if(AC.createStereoPanner){ fv.pan=AC.createStereoPanner(); fv.gain.connect(fv.pan); fv.pan.connect(master); }
+    else { fv.gain.connect(master); }
+    fv.tone=AC.createGain(); fv.tone.gain.value=1; fv.tone.connect(fv.gain);
+    fv.noise=AC.createBufferSource(); fv.noise.buffer=makeNoise(); fv.noise.loop=true;
+    /* 流れ落ちる水・せせらぎのベッド(音楽に溶けるよう、ざらつきを抑え暖かく) */
+    fv.waterLP=AC.createBiquadFilter(); fv.waterLP.type="lowpass"; fv.waterLP.frequency.value=1500; fv.waterLP.Q.value=0.6;
+    var wg=AC.createGain(); wg.gain.value=0.62; fv.noise.connect(fv.waterLP); fv.waterLP.connect(wg); wg.connect(fv.tone);
+    /* 協和した共鳴（音程感を与え、音楽の一部として聞こえるように少し強める） */
+    fv.res=[];
+    for(var i=0;i<RES_RATIOS.length;i++){ var bp=AC.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=5; bp.frequency.value=220*RES_RATIOS[i]; var rg=AC.createGain(); rg.gain.value=RES_GAINS[i]*0.68; fv.noise.connect(bp); bp.connect(rg); rg.connect(fv.tone); fv.res.push(bp); }
+    fv.noise.start();
+    /* ゆっくりした流れの揺らぎ */
+    fv.lfo=AC.createOscillator(); fv.lfo.type="sine"; fv.lfo.frequency.value=0.16; var lg=AC.createGain(); lg.gain.value=520; fv.lfo.connect(lg); lg.connect(fv.waterLP.frequency); fv.lfo.start();
+  }catch(e){}
+}
+function fvMove(fv,x,y,target){
+  fvEnsure(fv); if(!AC||!fv.gain) return; var t=AC.currentTime;
+  if(appStartTime>0 && (Date.now()-appStartTime)<INTRO_GRACE_MS) target=0; /* イントロ中はなぞり音/流れ星飛行音も無音 */
+  fv.gain.gain.cancelScheduledValues(t); fv.gain.gain.setValueAtTime(fv.gain.gain.value,t);
+  /* 立ち上がりを大幅に短縮(0.9秒→0.12秒)。流れ星は中央値0.77秒程度で
+     飛び去ってしまうため、従来の0.9秒だと「音が追いつく前に消える」
+     ことが半数以上で起きていた。指でなぞる操作は継続的なので、この
+     短い立ち上がりでも急な印象にはならず、むしろ即応性が上がる。 */
+  if(fv.on){ fv.gain.gain.setTargetAtTime(target, t, 0.09); }             /* 追従はなめらかかつ機敏に */
+  else { fv.gain.gain.linearRampToValueAtTime(target, t+0.12); }          /* 素早く立ち上がる */
+  fv.on=true;
+  var f=pitchAt(y,profile()); if(f<80)f=80;                               /* タップと同じ音高で共鳴 */
+  var i; for(i=0;i<fv.res.length;i++){ fv.res[i].frequency.setTargetAtTime(f*RES_RATIOS[i], t, 0.12); }
+  if(fv.pan){ var pv=(x/W)*2-1; if(pv<-0.85)pv=-0.85; if(pv>0.85)pv=0.85; fv.pan.pan.setTargetAtTime(pv, t, 0.12); }
+}
+function fvStop(fv){
+  if(!AC||!fv.gain||!fv.on) return; fv.on=false; var t=AC.currentTime;
+  fv.gain.gain.cancelScheduledValues(t); fv.gain.gain.setValueAtTime(fv.gain.gain.value,t);
+  fv.gain.gain.setTargetAtTime(0.0001, t, 0.22);                          /* 消える速さも短命なイベントに合わせて短縮(0.55秒→0.22秒) */
+}
+var dragFV=FlowVoice(), meteorFV=FlowVoice();
+function playDrag(x,y){ ensureAudio(); fvMove(dragFV,x,y,0.125); }   /* なぞり中のせせらぎ — オーケストラに埋もれない音量にさらに底上げ */
+function stopDrag(){ fvStop(dragFV); }
+
+/* --- UI --- */
+function updateCount(){ var s=""+count; while(s.length<4)s="0"+s; document.getElementById("count").textContent="ほしのかけら "+s; }
+var hero=document.getElementById("hero"),heroGone=false;
+function dismissHero(){ if(!heroGone){ heroGone=true; hero.className="hero gone"; } }
+document.getElementById("play").addEventListener("click",function(){ heroPlay(); });
+var cnTimer=null;
+function showCons(c){
+  var el=document.getElementById("consname"); el.innerHTML=(c.z?"<span class='z'>":"<span class='jp'>")+c.jp+"座</span><span class='la'>"+c.la+"</span>"; el.className="consname show"; if(cnTimer)clearTimeout(cnTimer); cnTimer=setTimeout(function(){ el.className="consname"; },2200);
+  /* タップされた星座を30秒間、線で結んで強調表示する(全星座対応) */
+  highlightedCons=c; highlightUntil=Date.now()+30000;
+  if(highlightTimer)clearTimeout(highlightTimer);
+  highlightTimer=setTimeout(function(){ highlightedCons=null; },30050);
+}
+var toastTimer=null;
+function toast(msg){ var el=document.getElementById("toast"); el.textContent=msg; el.className="toast show"; if(toastTimer)clearTimeout(toastTimer); toastTimer=setTimeout(function(){el.className="toast";},1600); }
+document.getElementById("reload").addEventListener("click",function(e){ e.preventDefault(); location.reload(); });
+
+/* 惑星の英名(③) — 表示は「水(Mercury)」形式、Hz数字は無し */
+var PLANET_EN=["Mercury","Venus","Earth","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto"];
+
+var moodsEl=document.getElementById("moods"),moodBtns=[];
+
+/* ④ ボタンの点灯は「その楽器が今のセクションで鳴っているか」で決まる(Stella風)。
+   ユーザーは触れない(pointer-events:none)。曲の進行に合わせて自律的に明滅する。 */
+var lastSoundingState=[false,false,false,false,false,false,false,false,false];
+function currentSectionIndex(){
+  if(typeof COMPOSITION==='undefined'||!COMPOSITION||!COMPOSITION.length) return 0;
+  var el=null;
+  if(bgActive&&bgAudioEl&&isFinite(bgAudioEl.currentTime)) el=bgAudioEl.currentTime%COMP_CYCLE_LEN;
+  else if(playing&&audioCtx) el=(audioCtx.currentTime-compStartT)%COMP_CYCLE_LEN;
+  if(el===null){ el=(Date.now()/1000)%COMP_CYCLE_LEN; }  /* 未再生でも見た目が動く */
+  if(el<0)el+=COMP_CYCLE_LEN;
+  var cum=0; for(var s=0;s<COMPOSITION.length;s++){ if(el<cum+COMPOSITION[s].dur) return s; cum+=COMPOSITION[s].dur; }
+  return 0;
+}
+function updateMoodDisplay(){
+  if(typeof COMPOSITION==='undefined'||!COMPOSITION||!COMPOSITION.length) return;
+  var sec=COMPOSITION[currentSectionIndex()];
+  if(!sec||!sec.parts) return;
+  for(var i=0;i<moodBtns.length;i++){
+    var b=moodBtns[i]; if(!b)continue;
+    var part=sec.parts[i];
+    var sounding = !!(part && part.d>0.25) && instrOn[i];
+    b.classList.remove("sounding","off");
+    if(!instrOn[i]) b.classList.add("off");
+    else if(sounding) b.classList.add("sounding");
+    if(sounding && !lastSoundingState[i]){ blinkMoodBtn(i); autoTapForInstrument(i); }
+    lastSoundingState[i]=sounding;
+  }
+  /* ② 背景の色は「今鳴っている楽器の集合」にゆっくり寄せる。
+     ただし active[](=SEIKAI本来の音律/色決定配列)は書き換えない —
+     これを毎フレーム上書きすると曲の音律が激しく揺れてしまうため、
+     色の混色専用の別配列(colorMix)だけを更新する。 */
+  var soundingNow=[];
+  for(var j=0;j<9;j++){ if(lastSoundingState[j]) soundingNow.push(j); }
+  colorMix = soundingNow.length>0 ? soundingNow : active;
+}
+/* ① 楽器の切り替わり = 「画面上のランダムな位置をタップ」する。
+   touchAt をそのまま呼ぶことで、通常のタップと全く同じ一連の反応
+   (波紋・きらめき・星座名表示・ほしのかけら加算・水音)が起きる。 */
+/* ② 自動タップ(楽器切り替え)が同時多発すると、本物の同時タップと
+   区別がつかず、位置も近づいてしまう問題への対策。
+   ・呼ばれた瞬間ではなく、数秒の範囲でランダムに遅延させて発火させる
+     (完全同時にならない)
+   ・直近の自動タップ位置から一定距離以上離れた場所を選び直す
+     (近接も避ける) */
+var recentAutoTapPos=[]; /* {x,y,t} の履歴 */
+var MIN_AUTO_TAP_DIST_FRAC=0.22; /* 画面対角の22%以上離す(実用的な範囲で確保できる値) */
+function pickFarPosition(){
+  var w=W,h=H, diag=Math.sqrt(w*w+h*h), minDist=diag*MIN_AUTO_TAP_DIST_FRAC;
+  var now=Date.now();
+  /* 3秒より古い履歴は捨て、さらに直近3件だけを比較対象にする
+     (全履歴と比較すると画面が埋まり候補が枯渇するため) */
+  recentAutoTapPos=recentAutoTapPos.filter(function(p){ return now-p.t<3000; });
+  var against=recentAutoTapPos.slice(-3);
+  var best=null, bestMinD=-1;
+  for(var tries=0; tries<10; tries++){
+    var rx=rand(0.1,0.9)*w, ry=rand(0.14,0.82)*h;
+    var localMin=Infinity;
+    for(var i=0;i<against.length;i++){
+      var dx=rx-against[i].x, dy=ry-against[i].y;
+      var d=Math.sqrt(dx*dx+dy*dy); if(d<localMin) localMin=d;
+    }
+    if(against.length===0) return {x:rx,y:ry};
+    if(localMin>=minDist) return {x:rx,y:ry};
+    if(localMin>bestMinD){ bestMinD=localMin; best={x:rx,y:ry}; } /* 条件を満たさなくても最も遠い候補を保持 */
+  }
+  return best || {x:rand(0.1,0.9)*w, y:rand(0.14,0.82)*h};
+}
+function autoTapForInstrument(idx){
+  if(!W||!H) return;
+  /* 発火を 0.3〜3.2秒の範囲でランダムに遅らせ、複数楽器の同時切り替えが
+     一斉タップにならないようにする */
+  var delay=rand(300,3200);
+  setTimeout(function(){
+    if(!W||!H) return;
+    /* ③ 起動直後の数秒間はオートタップ自体を起こさない */
+    if(appStartTime>0 && (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
+    var p=pickFarPosition();
+    recentAutoTapPos.push({x:p.x,y:p.y,t:Date.now()});
+    touchAt(p.x, p.y, false, true);   /* isAuto=true — 実タップの1/n正規化には数えない */
+  }, delay);
+}
+/* ボタンの明滅アニメーション(Stella風) */
+function blinkMoodBtn(idx){
+  var b=moodBtns[idx]; if(!b)return;
+  b.classList.remove("blink"); void b.offsetWidth;
+  b.classList.add("blink");
+  setTimeout(function(){ b.classList.remove("blink"); }, 500);
+}
+function refreshMoodBtns(){ updateMoodDisplay(); }
+for (var mi=0; mi<MOODS.length; mi++){
+  (function(idx){
+    var b=document.createElement("button");
+    b.innerHTML=MOODS[idx].name+"<span class='en'>"+PLANET_EN[idx]+"</span>";
+    moodBtns.push(b); moodsEl.appendChild(b);
+  })(mi);
+}
+updateMoodDisplay();
+
+/* --- 起動 --- */
+/* ============================================================
+   ▼ SEIKAI × Stella BRIDGE — 融合の接続層
+   ============================================================ */
+
+/* VOL スライダー → SEIKAI master + Stella のBG音量 */
+var volSlider=document.getElementById("volume");
+function applyVolume(){
+  var v=(volSlider?(parseInt(volSlider.value,10)||100):100)/100;
+  if(master) master.gain.setTargetAtTime(MASTER_GAIN*v, (AC?AC.currentTime:0), 0.05);
+  if(orchGainNode&&audioCtx) orchGainNode.gain.setTargetAtTime(v, audioCtx.currentTime, 0.05);
+  /* BG(gapless)要素の音量 */
+  if(bgEls){ for(var i=0;i<bgEls.length;i++){ if(bgEls[i]) try{ bgEls[i].volume=Math.min(1,v); }catch(e){} } }
+}
+if(volSlider) volSlider.addEventListener("input",applyVolume);
+
+/* ② 個別楽器のオン/オフ = そのボイスの muteGain を上げ下げ */
+function applyInstrumentGain(idx, on){
+  if(!voices||!voices[idx]||!voices[idx].muteGain||!audioCtx) return;
+  var t=audioCtx.currentTime;
+  voices[idx].muteGain.gain.setTargetAtTime(on?1:0.0001, t, 0.08);
+}
+/* すべての楽器状態を現在の active に合わせて反映 */
+function syncAllInstruments(){
+  for(var i=0;i<9;i++){ var on=active.indexOf(i)>=0; instrOn[i]=on; applyInstrumentGain(i,on); }
+}
+
+/* BG焼き込みが現在の設定と食い違ったら再生成を促す(dirtyフラグ) */
+var bgDirty=false;
+function bgMarkDirty(){ if(bgActive){ bgDirty=true; } }
+
+/* ① 再生ボタン = SEIKAI起動 + Stellaオーケストラ(ライブ) + BG準備
+   SEIKAIの環境音は常時鳴っている。ここでオーケストラを重ねる(音A=両方)。*/
+var orchestraStarted=false;
+function startStellaOrchestra(){
+  if(orchestraStarted) return;
+  /* Stella専用のAudioContextを作る(SEIKAIのACとは別系統で両方から音が出る) */
+  try{
+    audioCtx = AC || new (window.AudioContext||window.webkitAudioContext)();
+  }catch(e){ audioCtx=null; }
+  if(!audioCtx) return;
+  masterGain = audioCtx.createGain();
+  var v=(volSlider?(parseInt(volSlider.value,10)||100):100)/100;
+  /* 通常音量で確実に開始する。以前「無音スタート→BG化成功時のみ聞こえる」
+     という設計を試したが、BG化の非同期処理(プローブ→焼き込み→再生)の
+     どこかで想定外に止まった場合、フェードインが一切発火せず
+     「何も聞こえない」という最悪の状態に陥るリスクがあった。
+     再生ボタンを押したら確実に音が鳴ることを最優先し、通常音量で
+     即座に開始する形に戻す。 */
+  masterGain.gain.value = 0.9;
+  masterGain.connect(audioCtx.destination);
+  orchGainNode = audioCtx.createGain();
+  orchGainNode.gain.value = v;
+  orchGainNode.connect(masterGain);
+  playing=true;
+  /* オーケストラ + Solfeggio + 波(shore) を起動 */
+  startOrchestra(audioCtx, orchGainNode);
+  if(allBandsMode){ allBandsObj=buildAllBands(audioCtx,masterGain); }
+  /* 起動直後に現在の惑星選択を楽器へ反映 */
+  setTimeout(syncAllInstruments, 400);
+  orchestraStarted=true;
+}
+/* ライブ演奏をフェードインで聞こえるようにする(BG化が失敗した時の復帰用)。
+   デフォルトは0.9(通常音量)へ、0.6秒かけて滑らかに立ち上がる。 */
+function fadeInLiveOrchestra(duration){
+  if(!masterGain||!audioCtx) return;
+  var t=audioCtx.currentTime;
+  masterGain.gain.cancelScheduledValues(t);
+  masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+  masterGain.gain.linearRampToValueAtTime(0.9, t+(duration||0.6));
+}
+
+/* ① 再生ボタン押下で全部起動 */
+var appStartTime=0;             /* 再生開始時刻(①イントロ保護の基準) */
+var INTRO_GRACE_MS=4000;        /* ① 最初の4秒: 同時タップの1/n正規化を無効化 + 流れ星/流星群の発生も抑制 */
+function heroPlay(){
+  ensureAudio();          /* SEIKAIの音(環境音) */
+  unlockAudio();
+  dismissHero();
+  appStartTime=Date.now(); /* イントロ保護の起点 */
+  startStellaOrchestra(); /* Stellaのオーケストラを重ねる(ライブ・通常音量で確実に鳴る) */
+  applyVolume();
+  /* 「再生」ボタンでライブ演奏を確実に開始したうえで、バックグラウンド
+     再生(画面ロック中も曲を続ける)への切り替えも試みる。
+     アプリ内プレビューでは音が出ない症状が確認されたが、これがプレビュー
+     固有のCSP制限によるものか切り分けるため、Web公開して実機Safariで
+     検証する。toggleBgModeは失敗時にライブへ確実に復帰する設計。 */
+  try{ toggleBgMode(); }catch(err){}
+}
+
+/* ============================================================
+   ▼ BG焼き込みに「流れ星の音」をランダムに追加 (指示C)
+   renderCompositionOffline は既に管弦楽+Solfeggio+binaural+音楽+波を焼く。
+   これに、流れ星の着水音を256秒の中へランダムに散らす。
+   ============================================================ */
+function bakeMeteorsIntoOffline(octx, mg, renderSec, sr){
+  /* 流れ星の着水音 = 短い純音のピチャン + 余韻。ランダムなタイミングで数十発。
+     低確率で「流星群」= 連続した数発のまとまり。ループ(256s)ごとに同パターン */
+  var rng=mulberry32(0x5EDA1); /* 固定シードで再現可能なランダム配置 */
+  var t=rand(2,6);
+  var meteorGain=octx.createGain(); meteorGain.gain.value=0.5; meteorGain.connect(mg);
+  function splash(t0, pan, freq){
+    try{
+      var o=octx.createOscillator(), g=octx.createGain(), p=octx.createStereoPanner();
+      o.type="sine"; o.frequency.setValueAtTime(freq, t0);
+      o.frequency.exponentialRampToValueAtTime(freq*0.6, t0+0.5);
+      p.pan.value=pan; o.connect(g); g.connect(p); p.connect(meteorGain);
+      g.gain.setValueAtTime(0.0001,t0);
+      g.gain.linearRampToValueAtTime(0.09, t0+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+rand(0.8,1.6));
+      o.start(t0); o.stop(t0+1.8);
+      /* 倍音 */
+      var o2=octx.createOscillator(), g2=octx.createGain();
+      o2.type="sine"; o2.frequency.setValueAtTime(freq*2,t0); o2.connect(g2); g2.connect(p);
+      g2.gain.setValueAtTime(0.0001,t0); g2.gain.linearRampToValueAtTime(0.025,t0+0.02);
+      g2.gain.exponentialRampToValueAtTime(0.0001,t0+0.6); o2.start(t0); o2.stop(t0+0.7);
+    }catch(e){}
+  }
+  var scaleBase=[220,247.5,275,330,366.7]; /* 純正律っぽい着水音の音高 */
+  while(t < renderSec-2){
+    var isShower = rng()<0.12;
+    if(isShower){
+      var nn=3+Math.floor(rng()*6), k;
+      for(k=0;k<nn;k++){
+        var tt=t+k*rand(0.15,0.5);
+        if(tt<renderSec-1) splash(tt, rand(-0.8,0.8), scaleBase[Math.floor(rng()*scaleBase.length)]*(rng()<0.5?1:2));
+      }
+      t += rand(8,20);
+    } else {
+      splash(t, rand(-0.8,0.8), scaleBase[Math.floor(rng()*scaleBase.length)]*(rng()<0.5?1:2));
+      t += rand(3,14);
+    }
+  }
+}
+
+function boot(){
+  armUnlock();
+  buildConstellations(); resize();
+  window.addEventListener("resize",function(){ clearTimeout(window.__rt); window.__rt=setTimeout(resize,220); },false);
+  updateCount(); requestAnimationFrame(frame); scheduleMeteor();
+  var pct=0,lp=document.getElementById("lpct"),ld=document.getElementById("loader");
+  var iv=setInterval(function(){ pct+=Math.random()*18+6; if(pct>=100){ pct=100; clearInterval(iv); setTimeout(function(){ld.className="loader gone";},280); } var s=""+Math.floor(pct); if(s.length<2)s="0"+s; lp.textContent=s+"%"; },90);
+  setTimeout(function(){ drop(W*0.5,H*0.46,520); },1100);
+  setTimeout(function(){ spawnSkyMeteor(); },2600);
+}
+boot();
+
+
+/* ========= STELLA ORCHESTRA ENGINE (injected) ========= */
+
+/* Stella globals (namespaced alongside SEIKAI's own) */
+var audioCtx=null, masterGain=null, playing=false;
+var orchestraMode=true, allBandsMode=true, autoModesApplied=true;
+var voices=[], orchestraFilter=null, compStartT=0, orchGainNode=null;
+var allBandsObj=null, musicOscs=[], chordIndex=0, chordTimer=null, melodyTimer=null;
+var bgActive=false, bgRendering=false, bgAudioEl=null, bgBlobUrl=null;
+var bgEls=[null,null], bgCur=0, bgSrcUrl=null, bgLoopTimer=null;
+var bgSnapshot=null, mediaProbeOk=false, sessionEl=null;
+var LOOP_LEN_SEC=256;
+var compCycleTimer=null, shoreSchedulerTimer2=null;
+/* Stella slider vars — bound to the hidden inputs injected in the body */
+var leftSlider=document.getElementById('leftFreq');
+var rightSlider=document.getElementById('rightFreq');
+var shoreSlider=document.getElementById('shoreVol');
+var musicSlider=document.getElementById('musicVol');
+var orchSlider=document.getElementById('orchVol');
+var activeChords=[], orchestraOscs=[], orchestraTimers=[], woscs=[];
+/* Per-instrument enable flags — index matches INSTRUMENTS/MOODS 0..8 */
+var instrOn=[true,true,true,true,true,true,true,true,true];
+
+// ===== fn:makePinkBuffer =====
+function makePinkBuffer(ctx,seconds){
+  var sr=ctx.sampleRate, len=Math.floor(sr*seconds);
+  var buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
+  var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(var ii=0;ii<len;ii++){
+    var w=Math.random()*2-1;
+    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+    b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+    b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+    d[ii]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+    b6=w*0.115926;
+  }
+  return buf;
+}
+
+// ===== fn:buildReverb =====
+function buildReverb(ctx){
+  var sr=ctx.sampleRate, len=Math.floor(sr*3.8);
+  var ir=ctx.createBuffer(2,len,sr);
+  for(var ch=0;ch<2;ch++){
+    var d=ir.getChannelData(ch);
+    for(var ii=0;ii<len;ii++)d[ii]=(Math.random()*2-1)*Math.pow(1-ii/len,2.0);
+  }
+  var conv=ctx.createConvolver(); conv.buffer=ir;
+  var wet=ctx.createGain(); wet.gain.value=0.72;
+  conv.connect(wet);
+  return{input:conv,output:wet};
+}
+
+// ===== fn:buildChannel =====
+function buildChannel(ctx,pinkBuf,freq,panVal,loopOffset){
+  var src=ctx.createBufferSource();
+  src.buffer=pinkBuf; src.loop=true;
+  src.loopStart=loopOffset; src.loopEnd=pinkBuf.duration;
+  var bp1=ctx.createBiquadFilter(); bp1.type='bandpass'; bp1.frequency.value=freq; bp1.Q.value=3.0;
+  var bp2=ctx.createBiquadFilter(); bp2.type='bandpass'; bp2.frequency.value=freq; bp2.Q.value=3.0;
+  var shelf=ctx.createBiquadFilter(); shelf.type='lowshelf'; shelf.frequency.value=65; shelf.gain.value=9;
+  var sg=ctx.createGain(); sg.gain.value=0.55;
+  // Swell — 4 LFOs at incommensurate rates create non-repeating amplitude variation
+  var rates=[0.083,0.107,0.143,0.191], depths=[0.12,0.09,0.07,0.05];
+  var lfos=rates.map(function(rate,ii){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.006;
+    var dg=ctx.createGain(); dg.gain.value=depths[ii];
+    osc.connect(dg); dg.connect(sg.gain); osc.start();
+    return osc;
+  });
+  // Frequency wander — shared between bp1 and bp2 so L/R stay 10Hz apart
+  var wArr=makeWander(ctx,Math.min(freq*0.12,40),null);
+  connectWander(wArr,bp1.frequency); connectWander(wArr,bp2.frequency);
+  var pan=ctx.createStereoPanner(); pan.pan.value=panVal;
+  src.connect(bp1); bp1.connect(bp2); bp2.connect(shelf); shelf.connect(sg); sg.connect(pan);
+  src.start();
+  return{src:src,bp1:bp1,bp2:bp2,lfos:lfos,panner:pan,woscs:wArr.map(function(w){return w.osc;})};
+}
+
+// ===== fn:buildAllBands =====
+function buildAllBands(ctx,outGain){
+  var allWoscs=[]; var pinkBuf=makePinkBuffer(ctx,13);
+  var sg=ctx.createGain(); sg.gain.value=0.52; sg.connect(outGain);
+  var rates=[0.079,0.103,0.139,0.187], depths=[0.09,0.07,0.05,0.04];
+  var lfos=rates.map(function(rate,ii){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.005;
+    var dg=ctx.createGain(); dg.gain.value=depths[ii];
+    osc.connect(dg); dg.connect(sg.gain); osc.start();
+    return osc;
+  });
+  var bv=0.55/SOL_DATA.length, sources=[];
+  SOL_DATA.forEach(function(sf,ii){
+    var lHz=sf.hz-5, rHz=sf.hz+5, off=(ii*1.3)%11;
+    var bwArr=makeWander(ctx,Math.min(sf.hz*0.11,45),allWoscs);
+    function mkB(hz,pv,lo){
+      var s=ctx.createBufferSource(); s.buffer=pinkBuf; s.loop=true;
+      s.loopStart=lo; s.loopEnd=pinkBuf.duration;
+      var f1=ctx.createBiquadFilter(); f1.type='bandpass'; f1.frequency.value=hz; f1.Q.value=3.2;
+      var f2=ctx.createBiquadFilter(); f2.type='bandpass'; f2.frequency.value=hz; f2.Q.value=3.2;
+      var sh=ctx.createBiquadFilter(); sh.type='lowshelf'; sh.frequency.value=65; sh.gain.value=7;
+      var g=ctx.createGain(); g.gain.value=bv;
+      var p=ctx.createStereoPanner(); p.pan.value=pv;
+      connectWander(bwArr,f1.frequency); connectWander(bwArr,f2.frequency);
+      s.connect(f1); f1.connect(f2); f2.connect(sh); sh.connect(g); g.connect(p); p.connect(sg);
+      s.start(); sources.push(s);
+    }
+    mkB(lHz,-1,off); mkB(rHz,1,off+0.65);
+  });
+  return{sg:sg,lfos:lfos,sources:sources,woscs:allWoscs};
+}
+
+// ===== fn:buildFoam =====
+function buildFoam(ctx,pinkBuf,outGain){
+  var src=ctx.createBufferSource();
+  src.buffer=pinkBuf; src.loop=true;
+  src.loopStart=2.5; src.loopEnd=pinkBuf.duration;
+  var hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1600; hp.Q.value=0.6;
+  var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=7000; lp.Q.value=0.5;
+  var g=ctx.createGain(); g.gain.value=0.12;
+  var lfo=ctx.createOscillator(); lfo.type='sine'; lfo.frequency.value=0.13;
+  var dg=ctx.createGain(); dg.gain.value=0.05;
+  lfo.connect(dg); dg.connect(g.gain); lfo.start();
+  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(outGain); src.start();
+  return{src:src,lfo:lfo};
+}
+
+// ===== fn:createVoice =====
+function createVoice(ctx, instr, outGain, t0) {
+  // Main oscillator
+  var osc = ctx.createOscillator();
+  if (instr.wv === 'sine') {
+    osc.type = 'sine';
+  } else {
+    osc.setPeriodicWave(getWave(ctx, instr.wv));
+  }
+  // Initial frequency: A3 (innocuous default; will be overwritten by playNote)
+  osc.frequency.setValueAtTime(220, t0);
+  
+  // Filter
+  var filt = ctx.createBiquadFilter();
+  filt.type = instr.ft || 'lowpass';
+  filt.frequency.value = instr.ff;
+  if (instr.fq > 1) filt.Q.value = instr.fq;
+  
+  // Note envelope — controls per-note ADSR. Starts at silence floor.
+  var noteEnv = ctx.createGain();
+  noteEnv.gain.setValueAtTime(0.00001, t0);
+  
+  // Section envelope — controls per-section dynamics. Starts at silence floor.
+  var sectionEnv = ctx.createGain();
+  sectionEnv.gain.setValueAtTime(0.00001, t0);
+  
+  // Stereo panner
+  var panner = ctx.createStereoPanner();
+  panner.pan.value = instr.pn || 0;
+  
+  // Vibrato (if instrument uses it)
+  var vibOsc = null, vibG = null;
+  if (instr.vr > 0) {
+    vibOsc = ctx.createOscillator();
+    vibOsc.type = 'sine';
+    vibOsc.frequency.value = instr.vr;
+    vibG = ctx.createGain();
+    vibG.gain.setValueAtTime(0, t0); // depth ramped per-note
+    vibOsc.connect(vibG);
+    vibG.connect(osc.detune);
+    vibOsc.start(t0);
+  }
+  
+  // FM modulator (Hangdrum)
+  var fmOsc = null, fmG = null;
+  if (instr.fm) {
+    fmOsc = ctx.createOscillator();
+    fmOsc.type = 'sine';
+    fmOsc.frequency.value = 220 * instr.fm.r;
+    fmG = ctx.createGain();
+    fmG.gain.setValueAtTime(0, t0);
+    fmOsc.connect(fmG);
+    fmG.connect(osc.frequency);
+    fmOsc.start(t0);
+  }
+  
+  // Amplitude LFO (Armonica mechanical hum)
+  var alfo = null;
+  if (instr.nm === 'Armonica') {
+    alfo = ctx.createOscillator();
+    alfo.type = 'sine';
+    alfo.frequency.value = 2.8;
+    var alfoDepth = ctx.createGain();
+    alfoDepth.gain.value = 0.015;
+    alfo.connect(alfoDepth);
+    alfoDepth.connect(noteEnv.gain);
+    alfo.start(t0);
+  }
+  
+  // Connect: osc → filt → noteEnv → sectionEnv → panner → muteGain → outGain
+  // muteGain lets a single instrument be toggled on/off (planet buttons)
+  // without disturbing the composition's own envelopes.
+  var muteGain = ctx.createGain();
+  muteGain.gain.value = 1;
+  osc.connect(filt);
+  filt.connect(noteEnv);
+  noteEnv.connect(sectionEnv);
+  sectionEnv.connect(panner);
+  panner.connect(muteGain);
+  muteGain.connect(outGain);
+  
+  osc.start(t0);
+  
+  return {
+    osc: osc, filt: filt, noteEnv: noteEnv, sectionEnv: sectionEnv,
+    panner: panner, muteGain: muteGain, vibOsc: vibOsc, vibG: vibG,
+    fmOsc: fmOsc, fmG: fmG, alfo: alfo,
+    instr: instr, lastFreq: 220
+  };
+}
+
+// ===== fn:scheduleCycleFor =====
+function scheduleCycleFor(ctx, cycleStart, vcs, filterNode) {
+  var sectionStarts = [];
+  var st = cycleStart;
+  COMPOSITION.forEach(function(sec) { sectionStarts.push(st); st += sec.dur; });
+  
+  // 1. Schedule phrase notes on each voice
+  COMPOSITION.forEach(function(sec, sIdx) {
+    var sectionStart = sectionStarts[sIdx];
+    sec.parts.forEach(function(part, iIdx) {
+      if (!part) return;
+      var voice = vcs[iIdx];
+      if (!voice) return;
+      var phrase = PHRASES[INSTR_NAMES[iIdx]][part.p];
+      if (!phrase) return;
+      playPhraseOnVoice(voice, phrase, sectionStart, sec.dur);
+    });
+  });
+  
+  // 2. Section dynamics — single linear ramp per section on sectionEnv
+  COMPOSITION.forEach(function(sec, sIdx) {
+    var sStart = sectionStarts[sIdx];
+    INSTRUMENTS.forEach(function(_, idx) {
+      var voice = vcs[idx]; if (!voice) return;
+      var part = sec.parts[idx];
+      var target = part ? Math.max(part.d, 0.00001) : 0.00001;
+      var rampT = sec.ramp || 6;
+      rampT = Math.min(rampT, sec.dur - 2);
+      voice.sectionEnv.gain.linearRampToValueAtTime(target, sStart + rampT);
+      voice.sectionEnv.gain.setValueAtTime(target, sStart + sec.dur);
+    });
+  });
+  
+  // 3. Filter sweep (Section 4 only)
+  if (filterNode) {
+    var f = filterNode.frequency;
+    f.setValueAtTime(20000, cycleStart);
+    COMPOSITION.forEach(function(sec, sIdx) {
+      if (!sec.fsw) return;
+      var sStart = sectionStarts[sIdx];
+      var d = sec.fsw.d, u = sec.fsw.u;
+      if (d) {
+        f.setValueAtTime(d[0], sStart + d[3]);
+        f.setTargetAtTime(d[1], sStart + d[3], d[2] * 0.20);
+      }
+      if (u) {
+        f.setTargetAtTime(u[1], sStart + u[3], u[2] * 0.20);
+      }
+    });
+  }
+}
+
+// ===== fn:audioBufferToWavBlobLooped =====
+function audioBufferToWavBlobLooped(buffer, sr, loopSec, xfadeSec) {
+  var numCh = buffer.numberOfChannels;
+  var loopLen = Math.floor(loopSec * sr);
+  var xfadeLen = Math.floor(xfadeSec * sr);
+  
+  // Build looped channel data
+  var outChans = [];
+  for (var c = 0; c < numCh; c++) {
+    var srcData = buffer.getChannelData(c);
+    var out = new Float32Array(loopLen);
+    // Copy the main body
+    for (var i = 0; i < loopLen; i++) out[i] = srcData[i];
+    // Fold the tail back over the head with equal-power crossfade
+    for (var j = 0; j < xfadeLen; j++) {
+      var tailIdx = loopLen + j;        // sample in the extra tail
+      if (tailIdx >= srcData.length) break;
+      var t = j / xfadeLen;             // 0..1 across the fade
+      // Equal-power curves
+      var headGain = Math.cos(t * Math.PI / 2); // head fades out 1→0
+      var tailGain = Math.sin(t * Math.PI / 2); // tail fades in 0→1
+      out[j] = out[j] * headGain + srcData[tailIdx] * tailGain;
+    }
+    outChans.push(out);
+  }
+  
+  // Loop-seam breath: gently dip the level into and out of the seam so any
+  // tiny gap the <audio> element introduces on wrap lands in near-quiet.
+  // 2.5s each side, floor 0.45 (~ -7dB) — reads musically as a wave receding.
+  var breathLen = Math.floor(2.5 * sr);
+  var dipFloor = 0.45;
+  for (var bc = 0; bc < numCh; bc++) {
+    var oc = outChans[bc];
+    for (var bi = 0; bi < breathLen && bi < loopLen; bi++) {
+      var bg = dipFloor + (1 - dipFloor) * (bi / breathLen);
+      oc[bi] *= bg;                    // head: rise 0.45 → 1
+      oc[loopLen - 1 - bi] *= bg;      // tail: fall 1 → 0.45 (mirrored)
+    }
+  }
+  
+  // Encode outChans as 16-bit PCM WAV
+  var bytesPerSample = 2;
+  var blockAlign = numCh * bytesPerSample;
+  var dataSize = loopLen * blockAlign;
+  var ab = new ArrayBuffer(44 + dataSize);
+  var dv = new DataView(ab);
+  var p = 0;
+  function ws(s) { for (var i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); }
+  function u32(v) { dv.setUint32(p, v, true); p += 4; }
+  function u16(v) { dv.setUint16(p, v, true); p += 2; }
+  ws('RIFF'); u32(36 + dataSize); ws('WAVE');
+  ws('fmt '); u32(16); u16(1); u16(numCh); u32(sr); u32(sr * blockAlign); u16(blockAlign); u16(16);
+  ws('data'); u32(dataSize);
+  for (var s = 0; s < loopLen; s++) {
+    for (var ch = 0; ch < numCh; ch++) {
+      var v = Math.max(-1, Math.min(1, outChans[ch][s]));
+      dv.setInt16(p, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+      p += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+// ===== fn:renderCompositionOffline =====
+function renderCompositionOffline(onProgress) {
+  return new Promise(function(resolve, reject) {
+    var OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OfflineCtx) { reject(new Error('OfflineAudioContext unsupported')); return; }
+    var sr = 44100;
+    var XFADE = 4.0;  // seconds of crossfade at the loop seam
+    var LOOP_CYCLES = 2; // bake 2 full cycles: interior 128s boundary is a TRUE
+                         // continuation (reverb flows across), so the only
+                         // processed seam occurs once per 256s.
+    var loopSec = COMP_CYCLE_LEN * LOOP_CYCLES;
+    var renderSec = loopSec + XFADE; // extra tail (start of cycle 3) to fold back
+    var totalLen = Math.ceil(renderSec * sr);
+    var octx;
+    try {
+      octx = new OfflineCtx(2, totalLen, sr);
+    } catch (e) { reject(e); return; }
+    
+    // Master chain (same limiter as live)
+    var mg = octx.createGain();
+    mg.gain.value = 0.9;
+    var comp = octx.createDynamicsCompressor();
+    comp.threshold.value = -1; comp.knee.value = 8; comp.ratio.value = 4;
+    comp.attack.value = 0.015; comp.release.value = 0.25;
+    mg.connect(comp); comp.connect(octx.destination);
+    
+    // ---- Orchestra layer ----
+    var reverb = buildReverb(octx);
+    var orchVolEl = document.getElementById('orchVol');
+    var orchGainVal = orchVolEl ? (parseInt(orchVolEl.value, 10) || 100) / 100 : 1.0;
+    var orchOut = octx.createGain();
+    orchOut.gain.value = orchGainVal * 2.0;
+    reverb.output.connect(orchOut);
+    orchOut.connect(mg);
+    var filt = octx.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 20000; filt.Q.value = 0.7;
+    filt.connect(reverb.input);
+    var vcs = INSTRUMENTS.map(function(instr) {
+      return createVoice(octx, instr, filt, 0.02);
+    });
+    // Schedule LOOP_CYCLES+1 cycles: the final one provides the natural
+    // tail material that gets crossfaded back over the head.
+    for (var ck = 0; ck <= LOOP_CYCLES; ck++) {
+      scheduleCycleFor(octx, 0.05 + ck * COMP_CYCLE_LEN, vcs, filt);
+    }
+    
+    // ---- Binaural layer — reproduce the LIVE channel structure exactly:
+    //      pink noise → bandpass(freq) → lowshelf → gain, panned L/R.
+    //      Using the same builder path guarantees BG sounds like live, and
+    //      the level matches (was previously a too-loud raw sine).
+    try {
+      var lf = +document.getElementById('leftFreq').value;
+      var rf = +document.getElementById('rightFreq').value;
+      var binPink = makePinkBuffer(octx, 13);
+      var binOut = octx.createGain();
+      binOut.gain.value = 0.28; // background layer — keep under orchestra
+      binOut.connect(mg);
+      var lch = buildChannel(octx, binPink, lf, -1, 0);
+      var rch = buildChannel(octx, binPink, rf, 1, 3.5);
+      lch.panner.connect(binOut);
+      rch.panner.connect(binOut);
+    } catch (e) {}
+    
+    // ---- Solfeggio bands layer (only if ALL mode is active) ----
+    // Reproduce live buildAllBands character (pink-noise bandpass per band).
+    if (allBandsMode && typeof SOL_DATA !== 'undefined') {
+      try {
+        var allOut = octx.createGain();
+        allOut.gain.value = 0.22; // ambient wash — well under orchestra
+        allOut.connect(mg);
+        var allPink = makePinkBuffer(octx, 13);
+        var bandGain = 0.55 / SOL_DATA.length;
+        SOL_DATA.forEach(function(sf, bi) {
+          var s = octx.createBufferSource();
+          s.buffer = allPink; s.loop = true;
+          s.loopStart = (bi * 1.3) % 10; s.loopEnd = allPink.duration;
+          var bp = octx.createBiquadFilter();
+          bp.type = 'bandpass'; bp.frequency.value = sf.hz; bp.Q.value = 4.0;
+          var bp2 = octx.createBiquadFilter();
+          bp2.type = 'bandpass'; bp2.frequency.value = sf.hz; bp2.Q.value = 4.0;
+          var g = octx.createGain(); g.gain.value = bandGain;
+          s.connect(bp); bp.connect(bp2); bp2.connect(g); g.connect(allOut);
+          s.start(0); s.stop(renderSec);
+        });
+      } catch (e) {}
+    }
+    
+    // ---- Ambient pads layer (音楽) — deterministic offline version of the
+    //      live startMusic (which uses setTimeout and can't run offline).
+    //      128s / 16s = exactly 8 chord segments = CHORDS cycle × 2. Loop-clean.
+    try {
+      var musicLvl = (musicSlider ? parseInt(musicSlider.value, 10) : 100) / 100 * 0.55;
+      if (musicLvl > 0.001) {
+        var mOut = octx.createGain(); mOut.gain.value = musicLvl; mOut.connect(mg);
+        var mRev = buildReverb(octx); mRev.output.connect(mOut);
+        var segDur = 16;
+        for (var ci = 0; ci * segDur < renderSec; ci++) {
+          var chord = CHORDS[ci % CHORDS.length];
+          var t0 = ci * segDur;
+          var t1 = Math.min(t0 + segDur + 4, renderSec); // 4s overlap between chords
+          chord.forEach(function(f) {
+            var o = octx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+            var g = octx.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.linearRampToValueAtTime(0.11, t0 + 4);
+            g.gain.setValueAtTime(0.11, Math.max(t0 + 4, t1 - 4));
+            g.gain.linearRampToValueAtTime(0.0001, t1);
+            o.connect(g); g.connect(mRev.input);
+            o.start(t0); o.stop(t1 + 0.1);
+          });
+        }
+      }
+    } catch (e) {}
+    
+    // ---- Shore foam layer (波打ち際) — static foam bed at slider level.
+    //      buildFoam is pure audio nodes, safe in OfflineAudioContext.
+    try {
+      var shoreLvl = (shoreSlider ? parseInt(shoreSlider.value, 10) : 10) / 100 * 0.7;
+      if (shoreLvl > 0.001) {
+        var shOut = octx.createGain(); shOut.gain.value = shoreLvl; shOut.connect(mg);
+        var shPink = makePinkBuffer(octx, 11);
+        buildFoam(octx, shPink, shOut);
+      }
+    } catch (e) {}
+    
+    // ---- Meteor splash layer (指示C) — random shooting-star water sounds
+    //      baked into the 256s loop so they play in the background too.
+    try { bakeMeteorsIntoOffline(octx, mg, renderSec, sr); } catch (e) {}
+    
+    if (onProgress) onProgress('rendering');
+    var renderDone = function(buffer) {
+      if (onProgress) onProgress('encoding');
+      try {
+        var blob = audioBufferToWavBlobLooped(buffer, sr, loopSec, XFADE);
+        resolve(blob);
+      } catch (encErr) {
+        reject(new Error('encode: ' + (encErr && encErr.message ? encErr.message : encErr)));
+      }
+    };
+    var p = null;
+    try {
+      octx.oncomplete = function(ev) { renderDone(ev.renderedBuffer); };
+      p = octx.startRendering();
+    } catch (startErr) {
+      reject(new Error('render-start: ' + (startErr && startErr.message ? startErr.message : startErr)));
+      return;
+    }
+    if (p && typeof p.then === 'function') {
+      octx.oncomplete = null;
+      p.then(renderDone).catch(function(rErr) {
+        reject(new Error('render: ' + (rErr && rErr.message ? rErr.message : rErr)));
+      });
+    }
+    // else: callback path via oncomplete handles it
+  });
+}
+
+// ===== fn:playMediaWhenReady =====
+function playMediaWhenReady(el) {
+  return new Promise(function(resolve, reject) {
+    var done = false;
+    function cleanup() {
+      el.removeEventListener('canplaythrough', onOk);
+      el.removeEventListener('error', onErr);
+    }
+    function onOk() {
+      if (done) return; done = true; cleanup();
+      el.play().then(resolve).catch(function(e) {
+        reject(new Error('play: ' + (e && e.message ? e.message : e)));
+      });
+    }
+    function onErr() {
+      if (done) return; done = true; cleanup();
+      var c = el.error ? el.error.code : '?';
+      reject(new Error('media error code=' + c));
+    }
+    el.addEventListener('canplaythrough', onOk);
+    el.addEventListener('error', onErr);
+    // Fallback: if neither event fires in 15s, try playing anyway
+    setTimeout(function() {
+      if (done) return; done = true; cleanup();
+      el.play().then(resolve).catch(function(e) {
+        reject(new Error('timeout-play: ' + (e && e.message ? e.message : e)));
+      });
+    }, 15000);
+    try { el.load(); } catch (e) {}
+  });
+}
+
+// ===== fn:ensureAudioSession =====
+function ensureAudioSession() {
+  if (sessionEl) {
+    if (sessionEl.paused) sessionEl.play().catch(function() {});
+    return;
+  }
+  try {
+    sessionEl = document.createElement('audio');
+    sessionEl.setAttribute('playsinline', '');
+    sessionEl.loop = true;
+    sessionEl.src = SILENT_WAV;
+    sessionEl.volume = 0.01;
+    sessionEl.style.display = 'none';
+    document.body.appendChild(sessionEl);
+    sessionEl.play().catch(function() { sessionEl = null; });
+  } catch (e) { sessionEl = null; }
+}
+
+// ===== fn:idbOpen =====
+function idbOpen() {
+  return new Promise(function(resolve, reject) {
+    if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+    var req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = function() {
+      var db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error || new Error('idb open failed')); };
+  });
+}
+
+// ===== fn:idbGet =====
+function idbGet(key) {
+  return idbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readonly');
+      var r = tx.objectStore(IDB_STORE).get(key);
+      r.onsuccess = function() { resolve(r.result || null); };
+      r.onerror = function() { reject(r.error); };
+    });
+  });
+}
+
+// ===== fn:idbSet =====
+function idbSet(key, blob) {
+  return idbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readwrite');
+      var store = tx.objectStore(IDB_STORE);
+      // Keep only the most recent render to bound storage: clear then put.
+      store.clear();
+      var r = store.put(blob, key);
+      tx.oncomplete = function() { resolve(true); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  });
+}
+
+// ===== fn:bgCacheKey =====
+function bgCacheKey() {
+  return 'v24|' + bgCurrentSnapshot();
+}
+
+// ===== fn:probeMediaSupport =====
+function probeMediaSupport(el) {
+  return new Promise(function(resolve, reject) {
+    var done = false;
+    function cleanup() {
+      el.removeEventListener('canplaythrough', onOk);
+      el.removeEventListener('error', onErr);
+    }
+    function onOk() { if (done) return; done = true; cleanup(); resolve(); }
+    function onErr() {
+      if (done) return; done = true; cleanup();
+      reject(new Error('probe: media blocked (code=' + (el.error ? el.error.code : '?') + ')'));
+    }
+    el.addEventListener('canplaythrough', onOk);
+    el.addEventListener('error', onErr);
+    setTimeout(function() {
+      if (done) return; done = true; cleanup();
+      reject(new Error('probe: timeout'));
+    }, 3000);
+    el.loop = false;
+    el.src = SILENT_WAV;
+    try { el.load(); } catch (e) {}
+  });
+}
+
+// ===== fn:startGaplessLoop =====
+function startGaplessLoop(srcUrl, vol) {
+  return new Promise(function(resolve, reject) {
+    // Element 0 = the ALREADY gesture-authorized bgAudioEl (it played the
+    // silent probe WAV inside the user's tap, so iOS lets it play sound).
+    // Reusing it is essential — a freshly created element has no play
+    // permission and would be blocked on iOS.
+    if (!bgAudioEl) {
+      bgAudioEl = document.createElement('audio');
+      bgAudioEl.setAttribute('playsinline', '');
+      bgAudioEl.style.display = 'none';
+      document.body.appendChild(bgAudioEl);
+    }
+    bgEls[0] = bgAudioEl;
+    bgEls[0].loop = false;
+    bgEls[0].volume = vol;
+    bgEls[0].src = srcUrl;
+    try { bgEls[0].load(); } catch (e) {}
+    bgCur = 0;
+    
+    // Play element 0 first. Only AFTER it is confirmed playing do we prepare
+    // element 1 — loading both against the same source simultaneously can make
+    // iOS block playback.
+    playMediaWhenReady(bgEls[0]).then(function() {
+      // Prepare the second element now (deferred to avoid simultaneous load)
+      if (!bgEls[1]) {
+        var a = document.createElement('audio');
+        a.setAttribute('playsinline', '');
+        a.style.display = 'none';
+        a.preload = 'auto';
+        document.body.appendChild(a);
+        bgEls[1] = a;
+      }
+      setTimeout(function() {
+        bgEls[1].loop = false;
+        bgEls[1].volume = vol;
+        bgEls[1].src = srcUrl;
+        try { bgEls[1].load(); } catch (e) {}
+      }, 500);
+      scheduleHandoff();
+      resolve();
+    }).catch(reject);
+    
+    function scheduleHandoff() {
+      if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
+      var playingEl = bgEls[bgCur];
+      // Poll until we know duration, then arm a timer to fire ~0.28s before end
+      function arm() {
+        var dur = playingEl.duration;
+        if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
+        var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
+        bgLoopTimer = setTimeout(function() {
+          var nextIdx = 1 - bgCur;
+          var nextEl = bgEls[nextIdx];
+          if (!nextEl) { scheduleHandoff(); return; } // second not ready yet
+          var baseVol = playingEl.volume;
+          try {
+            nextEl.currentTime = 0;
+            nextEl.volume = 0; // fade in to avoid a doubled seam
+            var pp = nextEl.play();
+            if (pp && pp.catch) pp.catch(function() {});
+          } catch (e) {}
+          // Short crossfade over the ~0.28s overlap
+          var steps = 8, i = 0;
+          var xf = setInterval(function() {
+            i++;
+            var t = i / steps;
+            try {
+              nextEl.volume = Math.min(1, baseVol * t);
+              playingEl.volume = Math.max(0, baseVol * (1 - t));
+            } catch (e) {}
+            if (i >= steps) {
+              clearInterval(xf);
+              try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
+            }
+          }, 32);
+          bgCur = nextIdx;
+          bgAudioEl = nextEl;
+          scheduleHandoff();
+        }, remainingMs);
+      }
+      arm();
+    }
+  });
+}
+
+// ===== fn:stopGaplessLoop =====
+function stopGaplessLoop() {
+  if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
+  bgEls.forEach(function(a) {
+    if (a) { try { a.pause(); } catch (e) {} }
+  });
+}
+
+// ===== fn:toggleBgMode =====
+function toggleBgMode(onDone) {
+  var btn = document.getElementById('bgModeBtn');
+  var status = document.getElementById('bgStatus');
+  
+  if (bgActive) {
+    // If settings changed since the last render, this tap means
+    // "re-render with new settings": turn off, then immediately restart.
+    var wantsRerender = bgSnapshot && bgCurrentSnapshot() !== bgSnapshot;
+    // Turn OFF: stop gapless loop, revoke URL, resume live context if playing
+    stopGaplessLoop();
+    if (bgBlobUrl) { try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {} bgBlobUrl = null; }
+    bgActive = false;
+    bgSnapshot = null;
+    if (btn) { btn.classList.remove('bg-on'); btn.innerHTML = '&#127760;'; btn.title='バックグラウンド再生'; }
+    if (status) status.textContent = '';
+    if (wantsRerender) { toggleBgMode(); return; }
+    if (audioCtx && playing && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+    }
+    return;
+  }
+  
+  if (bgRendering) { if(typeof onDone==='function')onDone(false); return; } // ignore double-tap during render
+  bgRendering = true;
+  
+  // 1. Create element + play silent WAV within this user gesture — secures
+  //    iOS media playback permission AND acts as a capability probe.
+  if (!bgAudioEl) {
+    bgAudioEl = document.createElement('audio');
+    bgAudioEl.setAttribute('playsinline', '');
+    bgAudioEl.style.display = 'none';
+    document.body.appendChild(bgAudioEl);
+  }
+  var _bgP1=bgAudioEl.play(); if(_bgP1&&_bgP1.catch)_bgP1.catch(function() {});
+  // Promote the page's audio session so the ringer/mute switch doesn't
+  // silence playback. Needed because BG can now be used without the
+  // (hidden) live-play button that used to call this.
+  ensureAudioSession();
+  
+  if (status) status.textContent = '\u78ba\u8a8d\u4e2d...'; // 確認中...
+  if (btn) btn.disabled = true;
+  
+  // 2. PROBE FIRST — if this viewer blocks data:/blob: media (CSP), fail fast
+  //    withOUT suspending live audio or wasting a 10s render.
+  var probeP = mediaProbeOk ? Promise.resolve() : probeMediaSupport(bgAudioEl);
+  probeP.then(function() {
+    mediaProbeOk = true;
+    // Probe OK — this environment can play media.
+    var _bgP2=bgAudioEl.play(); if(_bgP2&&_bgP2.catch)_bgP2.catch(function() {}); // silent wav: keep gesture chain warm
+    
+    // 3. Suspend live Web Audio (avoid double sound)
+    if (audioCtx && audioCtx.state === 'running') {
+      audioCtx.suspend().catch(function() {});
+    }
+    
+    // 4. CACHE CHECK — reuse a previously rendered WAV for this exact config
+    //    (instant) instead of re-rendering (~20s).
+    var cacheKey = bgCacheKey();
+    if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u78ba\u8a8d\u4e2d...';
+    return idbGet(cacheKey).catch(function() { return null; }).then(function(cached) {
+      if (cached) {
+        if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u304b\u3089\u5373\u518d\u751f';
+        return cached;
+      }
+      return renderCompositionOffline(function(phase) {
+        if (status) {
+          status.textContent = phase === 'rendering' ? '\u30ec\u30f3\u30c0\u30ea\u30f3\u30b0\u4e2d...' : '\u30a8\u30f3\u30b3\u30fc\u30c9\u4e2d...';
+        }
+      }).then(function(blob) {
+        idbSet(cacheKey, blob).catch(function() {});
+        return blob;
+      });
+    });
+  }, function(probeErr) {
+    // Probe failed — this viewer cannot play generated audio at all.
+    // Show clear guidance instead of a cryptic error. Live audio untouched.
+    bgRendering = false;
+    if (btn) { btn.disabled = false; }
+    if (status) status.textContent = '\u3053\u306e\u30d3\u30e5\u30fc\u30a2\u3067\u306fBG\u518d\u751f\u4e0d\u53ef\u3002\u30d5\u30a1\u30a4\u30eb\u3092\u4fdd\u5b58\u3057Safari\u3067\u958b\u304f\u3068\u5229\u7528\u3067\u304d\u307e\u3059';
+    throw { handled: true };
+  }).then(function(blob) {
+    if (!blob) return; // probe-failure path already handled
+    // Play via gapless double-buffer (eliminates the ~0.5s seam gap that the
+    // native loop attribute produces on iOS).
+    return new Promise(function(resolve, reject) {
+      var volEl = document.getElementById('volume');
+      var vol = volEl ? Math.min(1, (parseInt(volEl.value, 10) || 100) / 100) : 0.5;
+      
+      function tryDataUri() {
+        if (status) status.textContent = '\u5909\u63db\u4e2d...';
+        var fr = new FileReader();
+        fr.onload = function() {
+          bgSrcUrl = fr.result;
+          startGaplessLoop(bgSrcUrl, vol).then(resolve).catch(function(e2) {
+            reject(new Error('dataURI: ' + (e2 && e2.message ? e2.message : e2)));
+          });
+        };
+        fr.onerror = function() { reject(new Error('FileReader failed')); };
+        fr.readAsDataURL(blob);
+      }
+      
+      try {
+        bgBlobUrl = URL.createObjectURL(blob);
+        bgSrcUrl = bgBlobUrl;
+        startGaplessLoop(bgSrcUrl, vol).then(resolve).catch(function() {
+          try { URL.revokeObjectURL(bgBlobUrl); } catch (e) {}
+          bgBlobUrl = null;
+          tryDataUri();
+        });
+      } catch (blobErr) {
+        tryDataUri();
+      }
+    });
+  }).then(function() {
+    setupMediaSession();
+    bgActive = true;
+    bgRendering = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.add('bg-on');
+      btn.innerHTML = '&#127760;';
+      btn.title='バックグラウンド再生中(タップで停止)';
+    }
+    bgSnapshot = bgCurrentSnapshot();
+    // NOTE: We intentionally do NOT route bgAudioEl through Web Audio
+    // (createMediaElementSource), because on iOS that can break lock-screen
+    // background playback — the hard-won feature. Instead the waveform
+    // animates in a time-driven "playing" style while BG is active (below).
+    if (status) status.textContent = '';
+    if (typeof onDone==='function') onDone(true);
+  }).catch(function(err) {
+    bgRendering = false;
+    if (btn) { btn.disabled = false; }
+    var wasHandled = err && err.handled; // probe-failure already messaged
+    if (!wasHandled && status) status.textContent = 'BG\u5931\u6557: ' + (err && err.message ? err.message : err);
+    // CRITICAL: recover live playback — we suspended audioCtx before rendering.
+    // Without this, failure leaves the app silent. This applies whether the
+    // probe failed (handled) or rendering/playback failed later (unhandled).
+    if (bgAudioEl) { try { bgAudioEl.pause(); } catch (e) {} }
+    if (audioCtx && playing && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+    }
+    if (typeof onDone==='function') onDone(false);
+  });
+}
+
+// ===== fn:startOrchestra =====
+function startOrchestra(ctx, outGain) {
+  var reverb = buildReverb(ctx); reverb.output.connect(outGain);
+  orchestraFilter = ctx.createBiquadFilter();
+  orchestraFilter.type = 'lowpass';
+  orchestraFilter.frequency.value = 20000;
+  orchestraFilter.Q.value = 0.7;
+  orchestraFilter.connect(reverb.input);
+  // Create one persistent voice per instrument — all start at silence,
+  // never stopped until stopOrchestra() runs. Phase continuity preserved.
+  var t0 = ctx.currentTime + 0.3;
+  voices = INSTRUMENTS.map(function(instr) {
+    return createVoice(ctx, instr, orchestraFilter, t0);
+  });
+  if (shoreSchedulerTimer) {
+    clearTimeout(shoreSchedulerTimer);
+    shoreSchedulerTimer = null;
+    shoreOrchPaused = true;
+  }
+  startComposition(ctx);
+}
+
+// ===== fn:startMusic =====
+function startMusic(ctx,outGain){
+  var reverb=buildReverb(ctx);
+  reverb.output.connect(outGain);
+  // 0.047 Hz breathing modulation on the music master
+  var breath=ctx.createOscillator(); breath.type='sine'; breath.frequency.value=0.047;
+  var bd=ctx.createGain(); bd.gain.value=0.04;
+  breath.connect(bd); bd.connect(outGain.gain); breath.start();
+  musicOscs.push(breath);
+  chordIndex=0;
+  startChord(ctx,CHORDS[0],reverb.input);
+  function scheduleNext(){
+    if(!playing)return;
+    chordTimer=setTimeout(function(){
+      if(!playing)return;
+      chordIndex=(chordIndex+1)%CHORDS.length;
+      startChord(ctx,CHORDS[chordIndex],reverb.input);
+      scheduleNext();
+    },14000+Math.random()*8000);
+  }
+  scheduleNext();
+  melodyTimer=setTimeout(function(){doMelodyNote(ctx,reverb.input);},3200);
+}
+
+// ===== fn:startChord =====
+function startChord(ctx,freqs,reverbIn){
+  var t=ctx.currentTime+0.02;
+  var cg=ctx.createGain();
+  cg.gain.setValueAtTime(0.0001,t);
+  cg.gain.linearRampToValueAtTime(0.38,t+5.5);
+  var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; lp.Q.value=0.5;
+  cg.connect(lp); lp.connect(reverbIn);
+  var oscs=[];
+  freqs.forEach(function(freq){
+    [{d:0,tp:'sine',v:0.20},{d:8,tp:'sine',v:0.09},{d:-5,tp:'triangle',v:0.06}].forEach(function(s){
+      var osc=ctx.createOscillator(); osc.type=s.tp;
+      osc.frequency.value=freq; osc.detune.value=s.d;
+      var g=ctx.createGain(); g.gain.value=s.v;
+      osc.connect(g); g.connect(cg); osc.start(t);
+      oscs.push(osc); musicOscs.push(osc);
+    });
+  });
+  while(activeChords.length>0){
+    (function(old){
+      old.gain.gain.setTargetAtTime(0.0001,t,2.8);
+      var kill=old.oscs;
+      setTimeout(function(){
+        kill.forEach(function(o){try{o.stop();}catch(e){}});
+        musicOscs=musicOscs.filter(function(x){return kill.indexOf(x)===-1;});
+      },10000);
+    })(activeChords.shift());
+  }
+  activeChords.push({gain:cg,oscs:oscs});
+}
+
+// ===== fn:doMelodyNote =====
+function doMelodyNote(ctx,reverbIn){
+  if(!playing)return;
+  var freq=MELODY_NOTES[Math.floor(Math.random()*MELODY_NOTES.length)];
+  var t=ctx.currentTime, dur=2.8+Math.random()*2.5;
+  var osc=ctx.createOscillator(); osc.type='sine'; osc.frequency.value=freq;
+  var env=ctx.createGain();
+  env.gain.setValueAtTime(0,t);
+  env.gain.linearRampToValueAtTime(0.085,t+0.18);
+  env.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  osc.connect(env); env.connect(reverbIn);
+  osc.start(t); osc.stop(t+dur+0.1);
+  musicOscs.push(osc);
+  melodyTimer=setTimeout(function(){doMelodyNote(ctx,reverbIn);},3500+Math.random()*7500);
+}
+
+// ===== fn:playNoteOnVoice =====
+function playNoteOnVoice(voice, freq, dur, t) {
+  if (freq <= 0 || dur <= 0) return;
+  var instr = voice.instr;
+  var noteEnd = t + dur;
+  
+  // Frequency: Theremin uses portamento; others snap while env is at floor.
+  if (instr.nm === 'Theremin') {
+    voice.osc.frequency.setTargetAtTime(freq, t, 0.08);
+  } else {
+    voice.osc.frequency.setValueAtTime(freq, t);
+  }
+  
+  // FM follows main frequency (Hangdrum) — bounded within note window
+  if (voice.fmOsc) {
+    voice.fmOsc.frequency.setValueAtTime(freq * instr.fm.r, t);
+    var fg = voice.fmG.gain;
+    fg.setValueAtTime(0.0001, t);
+    fg.linearRampToValueAtTime(instr.fm.d * freq * 0.01, t + 0.005);
+    fg.exponentialRampToValueAtTime(0.0001, Math.min(t + instr.fm.dc, noteEnd));
+  }
+  
+  // Vibrato depth — rises after delay, returns to 0 by note end
+  if (voice.vibG) {
+    var vg = voice.vibG.gain;
+    var vStart = t + (instr.vdl || 0.05);
+    if (vStart < noteEnd - 0.1) {
+      vg.setValueAtTime(0, t);
+      vg.setValueAtTime(0, vStart);
+      vg.linearRampToValueAtTime(instr.vd, Math.min(vStart + 0.2, noteEnd - 0.05));
+      vg.linearRampToValueAtTime(0, noteEnd);
+    }
+  }
+  
+  // ADSR on noteEnv — all events inside [t, noteEnd], start & end at floor.
+  var g = voice.noteEnv.gain;
+  var atk = Math.min(instr.atk, dur * 0.3);
+  var peakT = t + atk;
+  var isPerc = instr.sus < 0.10;
+  
+  g.setValueAtTime(0.0001, t); // previous note already ended at floor — no jump
+  g.linearRampToValueAtTime(instr.g, peakT);
+  
+  if (isPerc) {
+    // Percussive: exponential ring-out, clamped to note window
+    g.exponentialRampToValueAtTime(0.0001, Math.min(peakT + instr.dcy, noteEnd));
+  } else {
+    // Sustained: decay to sustain, hold, release — all within window
+    var decT = Math.min(peakT + instr.dcy, t + dur * 0.5);
+    var sustainLevel = Math.max(instr.g * instr.sus, 0.0001);
+    g.linearRampToValueAtTime(sustainLevel, decT);
+    var relDur = Math.min(instr.rel, dur * 0.3);
+    g.setValueAtTime(sustainLevel, noteEnd - relDur);
+    g.linearRampToValueAtTime(0.0001, noteEnd);
+  }
+}
+
+// ===== fn:playPhraseOnVoice =====
+function playPhraseOnVoice(voice, phrase, sectionStart, sectionDur) {
+  var t = sectionStart;
+  var sectionEnd = sectionStart + sectionDur;
+  while (t + 16.0 <= sectionEnd + 0.01) {
+    for (var i = 0; i < phrase.length; i++) {
+      var n = phrase[i];
+      if (n[0] > 0) {
+        playNoteOnVoice(voice, n[0], n[1], t);
+      }
+      // Rest: silence is automatic (no note scheduled)
+      t += n[1];
+    }
+  }
+}
+
+// ===== fn:scheduleCycle =====
+function scheduleCycle(ctx, cycleStart) {
+  scheduleCycleFor(ctx, cycleStart, voices, orchestraFilter);
+}
+
+// ===== fn:startComposition =====
+function startComposition(ctx) {
+  compStartT = ctx.currentTime + 0.5;
+  var cyclesScheduled = 0;
+  function topUp() {
+    if (!orchestraMode || !audioCtx) return;
+    if (bgActive || bgRendering) return; // BG mode owns playback — don't resume live ctx
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function() {});
+      return;
+    }
+    var elapsed = ctx.currentTime - compStartT;
+    var currentCycleIdx = Math.max(0, Math.floor(elapsed / COMP_CYCLE_LEN));
+    while (cyclesScheduled < currentCycleIdx + 3) {
+      scheduleCycle(ctx, compStartT + cyclesScheduled * COMP_CYCLE_LEN);
+      cyclesScheduled++;
+    }
+  }
+  topUp();
+  compCycleTimer = setInterval(topUp, 20000);
+}
+
+// ===== var:SOL_DATA =====
+var SOL_DATA=[
+  {hz:174,instr:"Marimba",   cat:"&#25171;&#27005;&#22120;",        themeJP:"&#22823;&#22320;",themeEN:"Earth opens"},
+  {hz:285,instr:"Harp",      cat:"&#24382;&#27005;&#22120;",        themeJP:"&#27700;&#27969;",themeEN:"Water flows"},
+  {hz:396,instr:"Flute",     cat:"&#31649;&#27005;&#22120;",        themeJP:"&#39080;",       themeEN:"Wind rises"},
+  {hz:417,instr:"Hang Drum", cat:"&#27665;&#26063;&#27005;&#22120;",themeJP:"&#28814;",       themeEN:"Fire arrives"},
+  {hz:528,instr:"Piano",     cat:"&#37749;&#30436;&#27005;&#22120;",themeJP:"&#24859;",       themeEN:"Heart blooms"},
+  {hz:639,instr:"Theremin",  cat:"&#38651;&#23376;&#27005;&#22120;",themeJP:"&#32257;",       themeEN:"Bridge spans"},
+  {hz:741,instr:"Shakuhachi",cat:"&#21644;&#27005;&#22120;",        themeJP:"&#22768;",       themeEN:"Voice rises"},
+  {hz:852,instr:"Glass Harm",cat:"&#12464;&#12521;&#12473;&#12495;&#12540;&#12514;&#12491;&#12459;",themeJP:"&#38745;&#23517;",themeEN:"Silence holds"},
+  {hz:963,instr:"Armonica",  cat:"&#12450;&#12523;&#12514;&#12491;&#12459;",themeJP:"&#22825;",themeEN:"Crown dissolves"}
+];
+
+// ===== var:INSTRUMENTS =====
+var INSTRUMENTS=[
+  {nm:'Marimba',  cat:'&#25171;&#27005;&#22120;',  wv:'marimba',  atk:0.003,dcy:0.7, sus:0.05,rel:0.25,ft:'lowpass', ff:1500,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.17,pn:-0.35},
+  {nm:'Harp',     cat:'&#24382;&#27005;&#22120;',  wv:'harp',     atk:0.003,dcy:3.5, sus:0.00,rel:1.5, ft:'lowpass', ff:4000,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.17,pn:-0.10},
+  {nm:'Flute',    cat:'&#31649;&#27005;&#22120;',  wv:'sine',     atk:0.05, dcy:0.04,sus:0.70,rel:0.35,ft:'bandpass',ff:1200,fq:2,vr:6.8,vd:12,vdl:0.12, fm:null,                g:0.18,pn:0.20},
+  {nm:'Hangdrum', cat:'&#27665;&#26063;',          wv:'hangdrum', atk:0.008,dcy:2.6, sus:0.18,rel:1.5, ft:'bandpass',ff:1100,fq:2,vr:0,  vd:0, vdl:0,    fm:{r:2.2,d:18,dc:1.6}, g:0.17,pn:0.05},
+  {nm:'Piano',    cat:'&#37749;&#30436;',          wv:'piano',    atk:0.006,dcy:1.8, sus:0.00,rel:0.5, ft:'lowpass', ff:5000,fq:1,vr:0,  vd:0, vdl:0,    fm:null,                g:0.19,pn:-0.05},
+  {nm:'Theremin', cat:'&#38651;&#23376;',          wv:'sine',     atk:0.18, dcy:0.05,sus:0.95,rel:0.4, ft:'lowpass', ff:6000,fq:1,vr:4.2,vd:18,vdl:0.05, fm:null,                g:0.14,pn:-0.55},
+  {nm:'Shakuhachi',cat:'&#21644;&#27005;',         wv:'shakuhachi',atk:0.08,dcy:0.05,sus:0.78,rel:0.45,ft:'bandpass',ff:1100,fq:2,vr:5.5,vd:8, vdl:0.15, fm:null,                g:0.17,pn:0.40},
+  {nm:'GlassHarm',cat:'&#12464;&#12521;&#12473;',  wv:'glass',    atk:0.35, dcy:0.05,sus:0.95,rel:1.5, ft:'highpass',ff:400, fq:1,vr:2.0,vd:4, vdl:0.20, fm:null,                g:0.16,pn:0.25},
+  {nm:'Armonica', cat:'&#12450;&#12523;&#12514;',  wv:'armonica', atk:0.28, dcy:0.05,sus:1.00,rel:1.0, ft:'bandpass',ff:1400,fq:2,vr:3.0,vd:5, vdl:0.00, fm:null,                g:0.13,pn:0.00}
+];
+
+// ===== var:COMPOSITION =====
+var COMPOSITION=[
+  {jp:'大地',en:'Earth opens',dur:32,ramp:4,parts:[{d:0.7,p:'intro_am'},null,null,null,null,null,null,{d:0.35,p:'sparkle_am'},null,]},
+  {jp:'流',en:'Modulation',dur:32,ramp:4,parts:[null,{d:0.6,p:'cascade_c'},{d:0.85,p:'pure_c'},null,{d:0.6,p:'leap_c'},{d:0.75,p:'lyrical_c'},null,{d:0.3,p:'sparkle_c'},null,]},
+  {jp:'響',en:'Resonance',dur:32,ramp:6,parts:[{d:0.9,p:'drive_c'},{d:0.85,p:'cascade_c'},{d:0.9,p:'ornament_c'},{d:0.8,p:'calls_c'},{d:0.8,p:'roll_c'},{d:0.85,p:'soar_c'},{d:0.9,p:'power_c'},{d:0.55,p:'chorus_c'},{d:0.75,p:'chorus_c'},]},
+  {jp:'天',en:'Crown dissolves',dur:32,ramp:4,parts:[null,null,null,null,null,null,null,{d:0.4,p:'resolve_amaj'},{d:0.65,p:'resolve_amaj'},],fsw:{d:[20000,2000,4,0],u:[2000,20000,20,8]}}
+];
+
+// ===== var:COMP_CYCLE_LEN =====
+var COMP_CYCLE_LEN=128;
+
+// ===== var:CHORDS =====
+var CHORDS=[
+  [110.00,164.81,261.63,392.00],
+  [87.31,174.61,261.63,349.23],
+  [130.81,196.00,329.63,440.00],
+  [98.00,146.83,220.00,293.66]
+];
+
+// ===== var:PHRASES =====
+var PHRASES={
+Marimba:{
+intro_am:[[110.0,0.5],[130.81,0.5],[164.81,0.5],[220.0,0.5],[87.31,0.5],[110.0,0.5],[130.81,0.5],[174.61,0.5],[130.81,0.5],[164.81,0.5],[196.0,0.5],[261.63,0.5],[98.0,0.5],[123.47,0.5],[146.83,0.5],[196.0,0.5],[110.0,0.5],[130.81,0.5],[164.81,0.5],[220.0,0.5],[87.31,0.5],[110.0,0.5],[130.81,0.5],[174.61,0.5],[146.83,0.5],[174.61,0.5],[220.0,0.5],[293.66,0.5],[82.41,0.5],[207.65,0.5],[246.94,0.5],[164.81,0.5]],
+drive_c:[[130.81,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[87.31,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[174.61,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[110.0,0.25],[164.81,0.25],[130.81,0.25],[164.81,0.25],[220.0,0.25],[164.81,0.25],[130.81,0.25],[164.81,0.25],[98.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[196.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[130.81,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[196.0,0.25],[87.31,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[174.61,0.25],[130.81,0.25],[110.0,0.25],[130.81,0.25],[82.41,0.25],[123.47,0.25],[196.0,0.25],[123.47,0.25],[164.81,0.25],[123.47,0.25],[196.0,0.25],[123.47,0.25],[98.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25],[196.0,0.25],[146.83,0.25],[123.47,0.25],[146.83,0.25]],
+},
+Harp:{
+cascade_c:[[261.63,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[523.25,0.25],[659.26,0.25],[783.99,0.25],[1046.5,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[349.23,0.25],[440.0,0.25],[523.25,0.25],[698.46,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[392.0,0.25],[440.0,0.25],[523.25,0.25],[659.26,0.25],[880.0,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[349.23,0.25],[392.0,0.25],[493.88,0.25],[587.33,0.25],[783.99,0.25],[261.63,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[523.25,0.25],[659.26,0.25],[783.99,0.25],[1046.5,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[349.23,0.25],[440.0,0.25],[523.25,0.25],[698.46,0.25],[164.81,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[329.63,0.25],[392.0,0.25],[493.88,0.25],[659.26,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[349.23,0.25],[392.0,0.25],[493.88,0.25],[587.33,0.25],[783.99,0.25]],
+},
+Flute:{
+pure_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+ornament_c:[[493.88,0.125],[523.25,0.375],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[783.99,0.125],[880.0,0.375],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,0.75],[493.88,0.25],[523.25,1.0]],
+},
+Hangdrum:{
+calls_c:[[523.25,0.25],[0,0.25],[659.26,0.25],[783.99,0.25],[0,0.25],[523.25,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[880.0,0.25],[698.46,0.25],[0,0.25],[523.25,0.25],[440.0,0.25],[523.25,0.25],[440.0,0.25],[0,0.25],[523.25,0.25],[659.26,0.25],[0,0.25],[440.0,0.25],[392.0,0.25],[329.63,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[587.33,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[659.26,0.25],[783.99,0.25],[0,0.25],[523.25,0.25],[493.88,0.25],[392.0,0.25],[523.25,0.25],[0,0.25],[880.0,0.25],[698.46,0.25],[0,0.25],[523.25,0.25],[440.0,0.25],[523.25,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[659.26,0.25],[493.88,0.25],[392.0,0.25],[493.88,0.25],[0,0.25],[587.33,0.25],[783.99,0.25],[0,0.25],[587.33,0.25],[493.88,0.25],[392.0,0.25]],
+},
+Piano:{
+leap_c:[[130.81,0.5],[392.0,0.5],[523.25,0.5],[659.26,0.5],[87.31,0.5],[261.63,0.5],[349.23,0.5],[440.0,0.5],[110.0,0.5],[329.63,0.5],[440.0,0.5],[523.25,0.5],[98.0,0.5],[293.66,0.5],[392.0,0.5],[493.88,0.5],[130.81,0.5],[392.0,0.5],[523.25,0.5],[659.26,0.5],[87.31,0.5],[261.63,0.5],[349.23,0.5],[440.0,0.5],[82.41,0.5],[246.94,0.5],[329.63,0.5],[392.0,0.5],[98.0,0.5],[293.66,0.5],[392.0,0.5],[493.88,0.5]],
+roll_c:[[130.81,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[130.81,0.25],[196.0,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[349.23,0.25],[261.63,0.25],[220.0,0.25],[174.61,0.25],[261.63,0.25],[220.0,0.25],[261.63,0.25],[329.63,0.25],[440.0,0.25],[329.63,0.25],[261.63,0.25],[220.0,0.25],[329.63,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[392.0,0.25],[293.66,0.25],[246.94,0.25],[196.0,0.25],[293.66,0.25],[130.81,0.25],[164.81,0.25],[196.0,0.25],[261.63,0.25],[196.0,0.25],[164.81,0.25],[130.81,0.25],[196.0,0.25],[174.61,0.25],[220.0,0.25],[261.63,0.25],[349.23,0.25],[261.63,0.25],[220.0,0.25],[174.61,0.25],[261.63,0.25],[164.81,0.25],[196.0,0.25],[246.94,0.25],[329.63,0.25],[246.94,0.25],[196.0,0.25],[164.81,0.25],[246.94,0.25],[196.0,0.25],[246.94,0.25],[293.66,0.25],[392.0,0.25],[293.66,0.25],[246.94,0.25],[196.0,0.25],[293.66,0.25]],
+},
+Theremin:{
+lyrical_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+soar_c:[[1046.5,0.5],[1318.51,0.5],[1567.98,0.5],[1396.91,0.5],[1318.51,1.0],[1046.5,1.0],[1396.91,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+},
+Shakuhachi:{
+power_c:[[523.25,0.5],[659.26,0.5],[783.99,0.5],[698.46,0.5],[659.26,1.0],[523.25,1.0],[698.46,0.5],[880.0,0.5],[783.99,0.5],[659.26,0.5],[523.25,1.0],[587.33,1.0],[523.25,0.5],[659.26,0.5],[783.99,0.5],[987.77,0.5],[1046.5,1.0],[783.99,1.0],[880.0,0.5],[783.99,0.5],[698.46,0.5],[659.26,0.5],[523.25,2.0]],
+},
+GlassHarm:{
+sparkle_am:[[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[440.0,0.5],[523.25,0.5],[698.46,0.5],[523.25,0.5],[392.0,0.5],[659.26,0.5],[783.99,0.5],[659.26,0.5],[392.0,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5],[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[440.0,0.5],[523.25,0.5],[698.46,0.5],[523.25,0.5],[293.66,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[329.63,0.5],[415.3,0.5],[493.88,0.5],[659.26,0.5]],
+sparkle_c:[[523.25,0.5],[783.99,0.5],[1046.5,0.5],[783.99,0.5],[523.25,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[440.0,0.5],[659.26,0.5],[880.0,0.5],[659.26,0.5],[493.88,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5],[523.25,0.5],[783.99,0.5],[1046.5,0.5],[783.99,0.5],[523.25,0.5],[698.46,0.5],[880.0,0.5],[698.46,0.5],[493.88,0.5],[659.26,0.5],[783.99,0.5],[659.26,0.5],[493.88,0.5],[587.33,0.5],[783.99,0.5],[587.33,0.5]],
+chorus_c:[[1046.5,2.0],[659.26,2.0],[1046.5,2.0],[880.0,2.0],[880.0,2.0],[659.26,2.0],[987.77,2.0],[587.33,2.0]],
+resolve_amaj:[[880.0,4.0],[1108.73,4.0],[659.26,4.0],[440.0,4.0]],
+},
+Armonica:{
+chorus_c:[[523.25,2.0],[659.26,2.0],[523.25,2.0],[440.0,2.0],[440.0,2.0],[523.25,2.0],[493.88,2.0],[587.33,2.0]],
+resolve_amaj:[[880.0,0.5],[830.61,0.5],[739.99,0.5],[659.26,0.5],[587.33,1.0],[554.37,1.0],[493.88,0.5],[440.0,0.5],[415.3,0.5],[369.99,0.5],[329.63,1.0],[293.66,1.0],[277.18,0.5],[246.94,0.5],[220.0,0.5],[277.18,0.5],[329.63,1.0],[440.0,1.0],[440.0,1.0],[554.37,1.0],[440.0,2.0]],
+},
+};
+
+// ===== var:INSTR_NAMES =====
+var INSTR_NAMES=['Marimba','Harp','Flute','Hangdrum','Piano','Theremin','Shakuhachi','GlassHarm','Armonica'];
+
+// ===== var:SEC_EN =====
+var SEC_EN=['Earth opens','Modulation','Resonance','Crown dissolves'];
+
+
+
+/* ===== additional Stella helpers ===== */
+function makeWander(ctx,range,oList){
+  var rates=[0.029,0.067,0.113];
+  return rates.map(function(rate){
+    var osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.value=rate+(Math.random()-0.5)*0.004;
+    var depth=ctx.createGain(); depth.gain.value=range/3;
+    osc.connect(depth); osc.start();
+    if(oList)oList.push(osc);
+    return{osc:osc,depth:depth};
+  });
+}
+
+function connectWander(wArr,param){wArr.forEach(function(w){w.depth.connect(param);});}
+
+function makePeriodicWave(ctx,harmonics){
+  var real=new Float32Array(harmonics.length+1);
+  var imag=new Float32Array(harmonics.length+1);
+  real[0]=0;
+  harmonics.forEach(function(h,ii){real[ii+1]=h;});
+  return ctx.createPeriodicWave(real,imag);
+}
+
+function getWave(ctx,wvName){
+  if(wvName==='piano')      return makePeriodicWave(ctx,[1,0.45,0.18,0.10,0.05,0.02]);
+  if(wvName==='marimba')    return makePeriodicWave(ctx,[1,0.10,0.05,0.55,0,0,0,0,0.15]);
+  if(wvName==='harp')       return makePeriodicWave(ctx,[1,0.50,0.30,0.15,0.08,0.04,0.02]);
+  if(wvName==='hangdrum')   return makePeriodicWave(ctx,[1,0.65,0.50,0.40,0.30,0.18,0.10]);
+  if(wvName==='shakuhachi') return makePeriodicWave(ctx,[1,0.25,0.08,0.04,0.02]);
+  if(wvName==='glass')      return makePeriodicWave(ctx,[1,0,0,0.30,0,0.15,0,0,0.08]);
+  if(wvName==='armonica')   return makePeriodicWave(ctx,[1,0.40,0.25,0.10,0.12,0.06]);
+  return null;
+}
+
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: '\u97ff \u2014 Binaural Orchestra',
+      artist: '9\u697d\u5668 \u30fb 120 BPM \u30fb Am\u2192C\u2192A',
+      album: '128s endless loop'
+    });
+  } catch (e) {}
+  try {
+    navigator.mediaSession.setActionHandler('play', function() {
+      if (bgAudioEl) bgAudioEl.play();
+    });
+    navigator.mediaSession.setActionHandler('pause', function() {
+      if (bgAudioEl) bgAudioEl.pause();
+    });
+  } catch (e) {}
+}
+
+function bgCurrentSnapshot(){
+  return [orchestraMode?1:0, allBandsMode?1:0,
+          leftSlider.value, rightSlider.value,
+          orchSlider.value, musicSlider.value, shoreSlider.value].join('|');
+}
+
+function stopOrchestra() {
+  // Stop persistent voices — each has an oscillator (and possibly vibOsc,
+  // fmOsc, alfo) that needs to be terminated to free audio resources.
+  voices.forEach(function(v) {
+    if (!v) return;
+    try { v.osc.stop(); } catch(e) {}
+    if (v.vibOsc) try { v.vibOsc.stop(); } catch(e) {}
+    if (v.fmOsc) try { v.fmOsc.stop(); } catch(e) {}
+    if (v.alfo) try { v.alfo.stop(); } catch(e) {}
+  });
+  voices = [];
+  // Also stop any tracked oscillators (in case any remain from older code)
+  orchestraOscs.forEach(function(o) { try { o.stop(); } catch(e) {} });
+  orchestraOscs = [];
+  orchestraTimers.forEach(function(t) { clearTimeout(t); });
+  orchestraTimers = [];
+  stopComposition();
+  if (orchestraFilter) { try { orchestraFilter.disconnect(); } catch(e) {} orchestraFilter = null; }
+  // Resume random shore scheduling
+  if (shoreOrchPaused && playing) {
+    shoreOrchPaused = false;
+    nextWaveTime = audioCtx.currentTime + 1.0;
+    runShoreScheduler();
+  }
+  // Clear chip dynamic highlights
+  document.querySelectorAll('.sol-chip').forEach(function(c) {
+    c.classList.remove('lead', 'support', 'silent');
+  });
+}
+
+
+/* live shore scheduler omitted in fusion — BG render bakes its own shore.
+   Stub keeps startComposition happy. */
+var shoreStatic=null, shoreSchedulerTimer=null, nextWaveTime=0;
+var shorePinkBuf=null, shoreOrchPaused=false;
+function runShoreScheduler(){ /* no-op in fusion */ }
+
+/* ========= END STELLA ENGINE ========= */
+</script>
+</body>
+</html>
