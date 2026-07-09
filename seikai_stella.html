@@ -33,6 +33,8 @@
   .hud .reload{ pointer-events:auto; cursor:pointer; background:transparent; border:0; font-family:inherit;
     color:#8ec2f0; opacity:.6; font-size:19px; line-height:1; padding:2px 4px; transition:opacity .3s ease, transform .5s ease; flex-shrink:0; }
   .hud .reload:hover{ opacity:1; transform:rotate(-180deg); }
+  .hud .bgstatusrow{ font-family:"Space Mono",monospace; font-size:9px; letter-spacing:.08em; color:#7f90bf;
+    text-align:center; min-height:12px; opacity:.7; margin-top:2px; }
   .consname{ position:fixed; top:132px; left:0; right:0; text-align:center; z-index:2; pointer-events:none;
     opacity:0; transition:opacity .6s ease; }
   .consname.show{ opacity:.62; }   /* 他UIと透明度を合わせる */
@@ -101,6 +103,7 @@
       <input type="range" id="volume" min="0" max="100" value="100" step="1">
       <button class="reload" id="reload" title="リロード" aria-label="リロード">↺</button>
     </div>
+    <div class="bgstatusrow" id="bgStatus"></div>
   </div>
 </div>
 <div class="consname" id="consname"></div>
@@ -119,7 +122,6 @@
   <input type="range" id="musicVol" min="0" max="100" value="100">
   <input type="range" id="orchVol" min="0" max="100" value="100">
   <button id="bgModeBtn"></button>
-  <span id="bgStatus"></span>
 </div>
 
 <div class="loader" id="loader">
@@ -607,7 +609,17 @@ function frame(time){
 /* --- 入力 --- */
 var down=false,moved=false,startX=0,startY=0,startT=0,lastX=0,lastY=0,wakeAcc=0;
 function P(e){ var x,y; if(e.touches&&e.touches.length){x=e.touches[0].clientX;y=e.touches[0].clientY;} else if(e.changedTouches&&e.changedTouches.length){x=e.changedTouches[0].clientX;y=e.changedTouches[0].clientY;} else {x=e.clientX;y=e.clientY;} return {x:x*dpr,y:y*dpr}; }
-function onDown(e){ ensureAudio(); dismissHero(); var p=P(e); down=true; moved=false; startX=p.x; startY=p.y; lastX=p.x; lastY=p.y; startT=Date.now(); if(e.cancelable)e.preventDefault(); }
+function onDown(e){
+  /* 画面のどこをタップしても開始できるSEIKAI本来の仕様と、「再生」
+     ボタンが管弦楽+BG化のトリガーを兼ねるStella統合の両立のため、
+     まだ何も始まっていなければ、ここでも完全にheroPlay()を呼ぶ。
+     これにより、appStartTimeの設定漏れ(イントロ保護が効かない不具合の
+     真因だった)と、オーケストラが鳴らないまま操作できてしまう問題を
+     同時に解消する。 */
+  if(!orchestraStarted){ heroPlay(); }
+  else { ensureAudio(); dismissHero(); }
+  var p=P(e); down=true; moved=false; startX=p.x; startY=p.y; lastX=p.x; lastY=p.y; startT=Date.now(); if(e.cancelable)e.preventDefault();
+}
 function onMove(e){ if(!down)return; var p=P(e); var dx=p.x-startX,dy=p.y-startY; if(!moved&&(dx*dx+dy*dy)>(10*dpr)*(10*dpr))moved=true;
   if(moved){ var seg=Math.sqrt((p.x-lastX)*(p.x-lastX)+(p.y-lastY)*(p.y-lastY)); wakeAcc+=seg; if(wakeAcc>8*dpr){ wakeAcc=0; drop(p.x,p.y,WATER.dropWake); if(Math.random()<0.5)crest(p.x,p.y,1,curStar); playDrag(p.x,p.y); } }
   lastX=p.x; lastY=p.y; if(e.cancelable)e.preventDefault(); }
@@ -619,7 +631,7 @@ function onCancel(e){ if(down){ down=false; moved=false; stopDrag(); } }
 cv.addEventListener("mousedown",onDown,false); window.addEventListener("mousemove",onMove,false); window.addEventListener("mouseup",onUp,false);
 cv.addEventListener("touchstart",onDown,{passive:false}); cv.addEventListener("touchmove",onMove,{passive:false}); cv.addEventListener("touchend",onUp,{passive:false});
 cv.addEventListener("touchcancel",onCancel,{passive:false}); window.addEventListener("blur",onCancel,false);
-window.addEventListener("keydown",function(e){ if(e.code==="Space"||e.keyCode===32){ dismissHero(); touchAt(rand(0.15,0.85)*W,rand(0.15,0.7)*H,false); e.preventDefault(); } },false);
+window.addEventListener("keydown",function(e){ if(e.code==="Space"||e.keyCode===32){ if(!orchestraStarted){ heroPlay(); } else { dismissHero(); } touchAt(rand(0.15,0.85)*W,rand(0.15,0.7)*H,false); e.preventDefault(); } },false);
 
 /* --- 音（常時オン。触れずとも淡い持続音が流れる） --- */
 var AC=null,master=null;
