@@ -1819,6 +1819,22 @@ function ensureAudioSession() {
   } catch (e) { sessionEl = null; }
 }
 
+/* IndexedDB のデータベース名・ストア名・バージョン。
+   SILENT_WAV と同様、融合移植の際にこの3定数の定義が抜け落ちていた。
+   idbOpen/idbGet/idbSet はこれらを参照するが未定義のため、
+   indexedDB.open(IDB_NAME, IDB_VER) が毎回 ReferenceError で失敗し、
+   その reject が全経路(idbGet の .catch, idbSet の .catch, prewarm)で
+   握り潰されていた。結果として「キャッシュは常にミス=毎回フルレンダリング、
+   保存も一切されない」状態になり、キャッシュ機構が無症状のまま死んでいた。
+   これがロード短縮が効いていなかった原因。旧Stella_Melodysの構成から復元する。
+
+   DB名は旧版 stella.html の 'orchestraBG' とは別名にして隔離する。
+   両ページは同一オリジン(edonnalifa-ops.github.io)で IndexedDB を共有するため、
+   同名だと単一のキャッシュ枠を奪い合い、スナップショットが一致した時に
+   互いのレンダリング結果を取り違えうる。別名なら衝突しない。
+   ※もし旧版とキャッシュを共有したい場合は 'orchestraBG' に戻せばよい。 */
+var IDB_NAME = 'seikaiStellaBG', IDB_STORE = 'renders', IDB_VER = 1;
+
 // ===== fn:idbOpen =====
 function idbOpen() {
   return new Promise(function(resolve, reject) {
