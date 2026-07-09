@@ -434,7 +434,17 @@ function touchAt(x,y,big,isAuto){
   if(bgRendering) return;
   drop(x,y, big?WATER.dropBig:WATER.dropTap); crest(x,y, big?14:6, curAccent); count++; updateCount();
   var c=nearestConstellation(x,y); if(c)showCons(c);
-  if(big)playMelody(x,y); else playTouch(x,y,isAuto);
+  /* バックグラウンド再生中は、SEIKAI側の効果音(playMelody/playTouch、
+     いずれもAC=audioCtxを使う)を鳴らさない。BG再生開始から数秒以内に
+     画面を触るとBGMが消える不具合の原因を調査した結果、taps/melody
+     がAC(suspend中のはずのcontext)に対してノード生成・start()を
+     呼び続けており、ブラウザ側の内部状態と噛み合わず不安定になって
+     いた可能性が高いと判断した。BG再生中は既にBGが音楽を担っている
+     ので、SEIKAI側の効果音を鳴らさなくても不自然ではない
+     (波紋・きらめき・星座名などの視覚的な反応は今まで通り機能する)。 */
+  if(!bgActive){
+    if(big)playMelody(x,y); else playTouch(x,y,isAuto);
+  }
 }
 
 /* --- 流れ星（落ちて着水し、波紋と音を生む） --- */
@@ -618,7 +628,7 @@ function frame(time){
     }
   }
   skyMeteors.length=mm2;
-  if(flyX>=0) fvMove(meteorFV,flyX,flyY,0.125); else fvStop(meteorFV);   /* なぞり音と同じ音量に統一(底上げ) */
+  if(flyX>=0 && !bgActive) fvMove(meteorFV,flyX,flyY,0.125); else fvStop(meteorFV);   /* なぞり音と同じ音量に統一(底上げ)。BG再生中は鳴らさない */
 
   var s2=0;
   for(i=0;i<sparks.length;i++){ var sp=sparks[i]; sp.x+=sp.vx; sp.y+=sp.vy; sp.vx*=0.97; sp.vy*=0.97; sp.life-=sp.decay; if(sp.life>0){ ctx.fillStyle=rgba(sp.col,sp.life*0.8); ctx.beginPath(); ctx.arc(sp.x,sp.y,sp.size*sp.life,0,6.283); ctx.fill(); sparks[s2++]=sp; } }
@@ -848,7 +858,7 @@ function fvStop(fv){
   fv.gain.gain.setTargetAtTime(0.0001, t, 0.22);                          /* 消える速さも短命なイベントに合わせて短縮(0.55秒→0.22秒) */
 }
 var dragFV=FlowVoice(), meteorFV=FlowVoice();
-function playDrag(x,y){ ensureAudio(); fvMove(dragFV,x,y,0.125); }   /* なぞり中のせせらぎ — オーケストラに埋もれない音量にさらに底上げ */
+function playDrag(x,y){ if(bgActive)return; ensureAudio(); fvMove(dragFV,x,y,0.125); }   /* なぞり中のせせらぎ — BG再生中は鳴らさない(AC操作による不安定化を避ける) */
 function stopDrag(){ fvStop(dragFV); }
 
 /* --- UI --- */
@@ -1981,16 +1991,24 @@ function stopGaplessLoop() {
    タイミングでは、このキャッシュがあれば即座に鳴らせる(20秒規模の
    レンダリング待ちが発生しない)。
    音は一切鳴らさない — 完全に無音の準備作業。 */
+/* 事前レンダリング(idlePrewarmBg)と、実際の再生時レンダリングが同時に
+   走ると、重いOfflineAudioContextの処理が2つ並行することになり、
+   互いにCPUを奪い合って両方とも遅くなる(結果的に「キャッシュが
+   効いても速くならない」ように見える)。この変数で、事前レンダリングが
+   進行中かどうかを共有し、本番側が待てるようにする。 */
+var idlePrewarmInFlight=null; // Promise | null
+
 function idlePrewarmBg(){
   if(!window.indexedDB||!(window.OfflineAudioContext||window.webkitOfflineAudioContext))return;
   if(typeof bgCacheKey!=='function'||typeof idbGet!=='function')return; /* エンジン未定義なら諦める */
   var key=bgCacheKey();
-  idbGet(key).then(function(cached){
+  idlePrewarmInFlight=idbGet(key).then(function(cached){
     if(cached)return; /* 既にキャッシュ済み */
     return renderCompositionOffline(function(){}).then(function(blob){
       return idbSet(key, blob);
     });
-  }).catch(function(){ /* 失敗しても何もしない。実際に使う時に通常のレンダリングへフォールバックする */ });
+  }).catch(function(){ /* 失敗しても何もしない。実際に使う時に通常のレンダリングへフォールバックする */ })
+    .then(function(){ idlePrewarmInFlight=null; });
 }
 
 function toggleBgMode(onDone) {
@@ -2050,9 +2068,16 @@ function toggleBgMode(onDone) {
     
     // 4. CACHE CHECK — reuse a previously rendered WAV for this exact config
     //    (instant) instead of re-rendering (~20s).
+    //    もし事前レンダリング(idlePrewarmBg)がちょうど進行中なら、ここで
+    //    別の重いレンダリングを新たに始めると2つが同時に走ってCPUを
+    //    奪い合い、結果的に「キャッシュしても速くならない」原因になる。
+    //    進行中ならその完了(=キャッシュへの保存)を待ってから確認する。
     var cacheKey = bgCacheKey();
     if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u78ba\u8a8d\u4e2d...';
-    return idbGet(cacheKey).catch(function() { return null; }).then(function(cached) {
+    var waitPrewarm = idlePrewarmInFlight || Promise.resolve();
+    return waitPrewarm.catch(function(){}).then(function(){
+      return idbGet(cacheKey).catch(function() { return null; });
+    }).then(function(cached) {
       if (cached) {
         if (status) status.textContent = '\u30ad\u30e3\u30c3\u30b7\u30e5\u304b\u3089\u5373\u518d\u751f';
         return cached;
