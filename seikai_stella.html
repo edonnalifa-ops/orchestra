@@ -620,9 +620,15 @@ function onDown(e){
      まだ何も始まっていなければ、ここでも完全にheroPlay()を呼ぶ。
      これにより、appStartTimeの設定漏れ(イントロ保護が効かない不具合の
      真因だった)と、オーケストラが鳴らないまま操作できてしまう問題を
-     同時に解消する。 */
+     同時に解消する。
+     重要: orchestraStartedはレンダリング開始前の時点で既にtrueになる。
+     そのため、レンダリング中(bgRendering=true)にユーザーが画面を
+     タップすると、以前はここが無条件でdismissHero()を呼んでしまい、
+     「レンダリング中はオーバーレイを閉じない」という要件が崩れていた。
+     bgRendering中はタップを無視し、オーバーレイと待機表示を維持する。 */
   if(!orchestraStarted){ heroPlay(); }
-  else { ensureAudio(); dismissHero(); }
+  else if(!bgRendering){ ensureAudio(); dismissHero(); }
+  else { return; } /* レンダリング中は画面操作そのものを受け付けない */
   var p=P(e); down=true; moved=false; startX=p.x; startY=p.y; lastX=p.x; lastY=p.y; startT=Date.now(); if(e.cancelable)e.preventDefault();
 }
 function onMove(e){ if(!down)return; var p=P(e); var dx=p.x-startX,dy=p.y-startY; if(!moved&&(dx*dx+dy*dy)>(10*dpr)*(10*dpr))moved=true;
