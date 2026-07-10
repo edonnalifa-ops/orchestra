@@ -447,9 +447,14 @@ function touchAt(x,y,big,isAuto){
      いた可能性が高いと判断した。BG再生中は既にBGが音楽を担っている
      ので、SEIKAI側の効果音を鳴らさなくても不自然ではない
      (波紋・きらめき・星座名などの視覚的な反応は今まで通り機能する)。 */
-  if(!bgActive){
-    if(big)playMelody(x,y); else playTouch(x,y,isAuto);
-  }
+  /* 修正: かつてここにあった「BG再生中は効果音を鳴らさない」ガードを撤去。
+     当時「タップでBGMが消える」原因をAC(suspend中のcontext)への操作と
+     推定して封じたが、後の調査で真因は消滅後も残留していた透明な再生
+     ボタン(heroPlay再入→toggleBgMode OFF)と確定した。誤診由来のガード
+     だったため撤去し、BG再生中もタップ音・メロディを鳴らす。
+     ACはBG再生中も前面ではrunning維持に変更(ライブ演奏はmasterGain=
+     0.0001で無音のまま。BGMは<audio>要素が担当し二重音は起きない)。 */
+  if(big)playMelody(x,y); else playTouch(x,y,isAuto);
 }
 
 /* --- 流れ星（落ちて着水し、波紋と音を生む） --- */
@@ -633,7 +638,7 @@ function frame(time){
     }
   }
   skyMeteors.length=mm2;
-  if(flyX>=0 && !bgActive) fvMove(meteorFV,flyX,flyY,0.125); else fvStop(meteorFV);   /* なぞり音と同じ音量に統一(底上げ)。BG再生中は鳴らさない */
+  if(flyX>=0) fvMove(meteorFV,flyX,flyY,0.125); else fvStop(meteorFV);   /* なぞり音と同じ音量に統一。修正: bgActiveガード撤去(同上) */
 
   var s2=0;
   for(i=0;i<sparks.length;i++){ var sp=sparks[i]; sp.x+=sp.vx; sp.y+=sp.vy; sp.vx*=0.97; sp.vy*=0.97; sp.life-=sp.decay; if(sp.life>0){ ctx.fillStyle=rgba(sp.col,sp.life*0.8); ctx.beginPath(); ctx.arc(sp.x,sp.y,sp.size*sp.life,0,6.283); ctx.fill(); sparks[s2++]=sp; } }
@@ -689,18 +694,19 @@ function ensureAudio(){
      BG再生のために止めたcontextを毎回引き戻してしまい、連打すると
      バックグラウンド再生が壊れる不具合の原因になっていた。
      BG再生中はresumeを試みない。 */
-  if(AC&&AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} }
+  /* 修正: BG再生中でも前面(可視)ならresumeを許可し、タップ音・なぞり音を鳴らせる。
+     裏(hidden)ではsuspendのままにして省電力と<audio>単独再生を維持する。 */
+  if(AC&&AC.state==="suspended"&&!(bgActive&&document.hidden)){ try{AC.resume();}catch(e){} }
 }
 /* iOS/モバイルは「操作の中で実際に音を出す」まで無音のまま。最初の操作で確実に解錠する */
 function unlockAudio(){
   ensureAudio(); if(!AC) return;
   try{ var b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
-  /* 修正: BG再生中はaudioCtx(=AC)が意図的にsuspendされている。
-     armUnlockのハンドラは毎タップ発火し続けるため、ここで無条件に
-     resume()するとBG再生用の<audio>とオーディオセッションが競合し、
-     連続タップでBGMだけが消失する。ensureAudio側(687行)と同じ
-     bgActiveガードをここにも適用する(過去修正の漏れ)。 */
-  if(AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} }
+  /* 修正(改訂): 当初は「連打でBGM消失」対策としてbgActive中のresumeを
+     全面禁止したが、真因は透明化した再生ボタンのheroPlay再入と判明し
+     修正済み。現在はタップ音を鳴らすため、前面(可視)ならBG再生中でも
+     resumeを許可する。裏(hidden)でのみsuspendを維持(省電力)。 */
+  if(AC.state==="suspended"&&!(bgActive&&document.hidden)){ try{AC.resume();}catch(e){} }
 }
 /* 最初のあらゆる操作で解錠を試みる（window全体に張る） */
 function armUnlock(){
@@ -710,8 +716,16 @@ function armUnlock(){
   window.addEventListener("mousedown",h,false);
   window.addEventListener("click",h,false);
   window.addEventListener("keydown",h,false);
-  /* 修正: 画面復帰時も同様。BG再生中(bgActive)はresumeしない(同種バグの残党対策) */
-  document.addEventListener("visibilitychange",function(){ if(!document.hidden&&AC&&AC.state==="suspended"&&!bgActive){ try{AC.resume();}catch(e){} } },false);
+  /* 修正(改訂): 双方向制御に変更。
+     ・裏へ → BG再生中はWebAudio(AC)をsuspendして省電力。BGMは<audio>が単独で継続。
+     ・前面へ → resumeしてタップ音・なぞり音を復活させる。 */
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){
+      if(bgActive&&AC&&AC.state==="running"){ try{AC.suspend();}catch(e){} }
+    }else{
+      if(AC&&AC.state==="suspended"){ try{AC.resume();}catch(e){} }
+    }
+  },false);
 }
 function profile(){ var oct=0,sset={},iset={},i,j; for(i=0;i<active.length;i++){ var au=MOODS[active[i]].au; oct+=au.oct; for(j=0;j<au.scale.length;j++)sset[au.scale[j]]=1; for(j=0;j<au.insts.length;j++)iset[au.insts[j]]=1; } oct=Math.round(oct/active.length); var scale=[],k; for(k in sset)scale.push(parseFloat(k)); scale.sort(function(a,b){return a-b;}); var insts=[],mm; for(mm in iset)insts.push(parseInt(mm,10)); if(!scale.length)scale=[1,9/8,5/4,3/2,5/3]; if(!insts.length)insts=[0]; return {oct:oct,scale:scale,insts:insts}; }
 function pitchAt(y,prof){ var n=prof.scale.length*OCTAVES,idx=Math.floor((1-y/H)*n); if(idx<0)idx=0; if(idx>n-1)idx=n-1; var oct=Math.floor(idx/prof.scale.length)+prof.oct,deg=idx%prof.scale.length; return BASE_FREQ*Math.pow(2,oct)*prof.scale[deg]; }
@@ -869,7 +883,7 @@ function fvStop(fv){
   fv.gain.gain.setTargetAtTime(0.0001, t, 0.22);                          /* 消える速さも短命なイベントに合わせて短縮(0.55秒→0.22秒) */
 }
 var dragFV=FlowVoice(), meteorFV=FlowVoice();
-function playDrag(x,y){ if(bgActive)return; ensureAudio(); fvMove(dragFV,x,y,0.125); }   /* なぞり中のせせらぎ — BG再生中は鳴らさない(AC操作による不安定化を避ける) */
+function playDrag(x,y){ ensureAudio(); fvMove(dragFV,x,y,0.125); }   /* なぞり中のせせらぎ。修正: bgActiveガードを撤去(真因は透明再生ボタンと判明済みのため) */
 function stopDrag(){ fvStop(dragFV); }
 
 /* --- UI --- */
@@ -2105,10 +2119,11 @@ function toggleBgMode(onDone) {
     // Probe OK — this environment can play media.
     var _bgP2=bgAudioEl.play(); if(_bgP2&&_bgP2.catch)_bgP2.catch(function() {}); // silent wav: keep gesture chain warm
     
-    // 3. Suspend live Web Audio (avoid double sound)
-    if (audioCtx && audioCtx.state === 'running') {
-      audioCtx.suspend().catch(function() {});
-    }
+    /* 3. 修正: 以前はここでaudioCtxをsuspendしていたが、そのせいでBG再生中は
+       タップ音・なぞり音(いずれもAC=audioCtx上)が一切鳴らなかった。
+       二重音の心配は不要: ライブ演奏はmasterGain=0.0001で無音のうえ、
+       startCompositionのtopUpはbgActive中は新規サイクルを一切組まない。
+       裏面時の省電力はvisibilitychange側でsuspendする。 */
     
     // 4. CACHE CHECK — reuse a previously rendered WAV for this exact config
     //    (instant) instead of re-rendering (~20s).
