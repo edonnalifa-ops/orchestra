@@ -2717,6 +2717,7 @@ function runShoreScheduler(){ /* no-op in fusion */ }
     log.push(stamp()+' '+msg);
     if(log.length>8) log.shift();
   }
+  window.__dbgLog=addLog; /* 外部の呼び出し追跡からも記録できるように公開 */
   var prev={acState:null,bgActive:null,p0:null,p1:null};
   function hookEl(el,name){
     if(!el||el.__dbgHooked) return;
@@ -2756,6 +2757,24 @@ function runShoreScheduler(){ /* no-op in fusion */ }
     }catch(e){ panel.textContent='dbg error: '+e.message; }
   },250);
 })();
+/* DEBUG: BGM停止に関与しうる主要関数の呼び出しを追跡する。
+   呼ばれた瞬間がログに残るので、「誰がBGを止めたか」を一発で特定できる。 */
+(function(){
+  function wrap(name){
+    try{
+      var orig=window[name]||eval(name);
+    }catch(e){ return; }
+    var w=function(){
+      if(window.__dbgLog) window.__dbgLog('CALL '+name);
+      return orig.apply(this,arguments);
+    };
+    try{ eval(name+'=w'); }catch(e){}
+  }
+  try{ var _hp=heroPlay; heroPlay=function(){ if(window.__dbgLog)window.__dbgLog('CALL heroPlay'); return _hp.apply(this,arguments); }; }catch(e){}
+  try{ var _tb=toggleBgMode; toggleBgMode=function(){ if(window.__dbgLog)window.__dbgLog('CALL toggleBgMode'); return _tb.apply(this,arguments); }; }catch(e){}
+  try{ var _sg=stopGaplessLoop; stopGaplessLoop=function(){ if(window.__dbgLog)window.__dbgLog('CALL stopGaplessLoop'); return _sg.apply(this,arguments); }; }catch(e){}
+})();
+
 /* ========= END DEBUG DIAGNOSTICS ========= */
 
 /* ========= END STELLA ENGINE ========= */
