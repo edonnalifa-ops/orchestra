@@ -1934,7 +1934,7 @@ function startGaplessLoop(srcUrl, vol) {
       document.body.appendChild(bgAudioEl);
     }
     bgEls[0] = bgAudioEl;
-    bgEls[0].loop = false;
+    bgEls[0].loop = true; /* 修正: ネイティブループで生存保証(放置数時間で停止するバグ対策) */
     bgEls[0].volume = vol;
     bgEls[0].src = srcUrl;
     try { bgEls[0].load(); } catch (e) {}
@@ -1954,7 +1954,7 @@ function startGaplessLoop(srcUrl, vol) {
         bgEls[1] = a;
       }
       setTimeout(function() {
-        bgEls[1].loop = false;
+        bgEls[1].loop = true; /* 修正: 同上 */
         bgEls[1].volume = vol;
         bgEls[1].src = srcUrl;
         try { bgEls[1].load(); } catch (e) {}
@@ -1972,6 +1972,8 @@ function startGaplessLoop(srcUrl, vol) {
         if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
         var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
         bgLoopTimer = setTimeout(function() {
+          var durNow = playingEl.duration; /* 修正: 遅延発火時は張り直す */
+          if (isFinite(durNow) && (durNow - playingEl.currentTime) > 1.5) { scheduleHandoff(); return; }
           var nextIdx = 1 - bgCur;
           var nextEl = bgEls[nextIdx];
           if (!nextEl) { scheduleHandoff(); return; } // second not ready yet
