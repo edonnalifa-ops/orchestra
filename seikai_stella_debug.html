@@ -738,6 +738,12 @@ function ensureAudio(){
 function unlockAudio(){
   window.__dbgTap=(window.__dbgTap||0)+1; /* DEBUG */
   ensureAudio(); if(!AC) return;
+  /* 修正: このハンドラはtouchstart/touchend/clickで毎タップ複数回発火する。
+     従来は毎回無条件に解錠用の1サンプルソースを生成・発音しており、
+     連打時には数百個規模のWebAudioノードが<audio>再生と同時に量産されていた
+     (診断版でunlock fires:648を観測)。解錠は本来「鳴っていないcontextを
+     起こす」ための儀式なので、runningなら何もしないように変更。 */
+  if(AC.state==="running") return;
   try{ var b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
   /* 修正(改訂): 当初は「連打でBGM消失」対策としてbgActive中のresumeを
      全面禁止したが、真因は透明化した再生ボタンのheroPlay再入と判明し
@@ -1971,6 +1977,38 @@ function probeMediaSupport(el) {
   });
 }
 
+/* 追加: BG再生の自己修復ウォッチドッグ。
+   「連打でBGM消失」の残存トリガー(他ユーザー報告、未特定)への多層防御として、
+   意図しないpause(bgActive中・前面・現行要素)を検知したら自動でplay()を再試行する。
+   原因が何であれ、停止を一瞬の途切れに変換する安全網。
+   設計上の配慮:
+   - setTimeout(120ms)で遅延判定: toggleBgMode OFFは stopGaplessLoop→bgActive=false の
+     順のため、pauseイベント発火瞬間はまだbgActive=true。遅延後に再確認することで
+     意図的な停止を訤って肘活させない。
+   - document.hidden中は不介入: ロック画面・コントロールセンターからの
+     ユーザー操作によるpauseを尊重する。
+   - ハンドオフで退役した旧要素はel!==bgAudioElで除外。
+   - 10秒に3回までの再試行上限: 前面での意図的pauseとの無限の押し問答を防ぐ。 */
+var bgRetryCount = 0, bgRetryWindowStart = 0;
+function attachBgWatchdog(el) {
+  if (el.__wd) return;
+  el.__wd = true;
+  el.addEventListener('pause', function() {
+    setTimeout(function() {
+      if (!bgActive) return;
+      if (document.hidden) return;
+      if (el !== bgAudioEl) return;
+      if (!el.paused) return;
+      var now = Date.now();
+      if (now - bgRetryWindowStart > 10000) { bgRetryWindowStart = now; bgRetryCount = 0; }
+      if (bgRetryCount >= 3) return;
+      bgRetryCount++;
+      window.__dbgWd=(window.__dbgWd||0)+1; /* DEBUG: 自己修復回数 */
+      try { var p = el.play(); if (p && p.catch) p.catch(function() {}); } catch (e) {}
+    }, 120);
+  }, false);
+}
+
 // ===== fn:startGaplessLoop =====
 function startGaplessLoop(srcUrl, vol) {
   return new Promise(function(resolve, reject) {
@@ -1997,6 +2035,7 @@ function startGaplessLoop(srcUrl, vol) {
     bgEls[0].volume = vol;
     bgEls[0].src = srcUrl;
     try { bgEls[0].load(); } catch (e) {}
+    attachBgWatchdog(bgEls[0]); /* 追加: 不意の停止からの自己修復 */
     bgCur = 0;
     
     // Play element 0 first. Only AFTER it is confirmed playing do we prepare
@@ -2017,6 +2056,7 @@ function startGaplessLoop(srcUrl, vol) {
         bgEls[1].volume = vol;
         bgEls[1].src = srcUrl;
         try { bgEls[1].load(); } catch (e) {}
+        attachBgWatchdog(bgEls[1]); /* 追加: 同上 */
       }, 500);
       scheduleHandoff();
       resolve();
@@ -2707,7 +2747,7 @@ function runShoreScheduler(){ /* no-op in fusion */ }
       var mg=(typeof masterGain!=='undefined'&&masterGain)?masterGain.gain.value.toFixed(4):'?';
       var lines=[
         stamp()+'  AC:'+acState+'  bgActive:'+ba+'  bgRend:'+((typeof bgRendering!=='undefined')?bgRendering:'?')+'  playing:'+((typeof playing!=='undefined')?playing:'?'),
-        'unlock fires:'+(window.__dbgTap||0)+'  masterGain:'+mg,
+        'unlock fires:'+(window.__dbgTap||0)+'  wd-heals:'+(window.__dbgWd||0)+'  masterGain:'+mg,
         elLine(e0,'el0'),
         elLine(e1,'el1'),
         '--- log ---'
