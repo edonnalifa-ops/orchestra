@@ -285,11 +285,18 @@ function buildConstellations(){
    水面やタップ判定には一切影響しない(drawDeep内の描画のみ)。
    CSS側の @media と同じしきい値を使うこと。 */
 var PC_LAYOUT=false, PC_ZOOM=1.4;
+/* 改善2: タップ→星座名判定のために、描画で実際に使った回転角と
+   PC拡大の有無を毎フレーム記録しておく(判定側で逆変換に使用) */
+var lastSkyRot=0, lastPcZoomOn=false;
 function updatePcLayout(){
   PC_LAYOUT = window.innerWidth>=900 && (window.innerWidth/window.innerHeight)>=4/3;
 }
 function resize(){
   updatePcLayout();
+  /* 改善3: dprを毎回再取得。PCでDPIの異なるモニター間を移動したり
+     ブラウザズームを変えた際に、描画がぼやけたりタップ座標が
+     ズレたりするのを防ぐ(従来は読み込み時に1度だけ確定していた)。 */
+  dpr=Math.min(window.devicePixelRatio||1,2);
   W=Math.round(window.innerWidth*dpr); H=Math.round(window.innerHeight*dpr);
   cv.width=W; cv.height=H; cv.style.width=window.innerWidth+"px"; cv.style.height=window.innerHeight+"px";
   ctx.imageSmoothingEnabled=true;
@@ -403,6 +410,7 @@ function drawDeep(time){
      この外側の拡大は維持される。drawNightSky(最前面のグラデーション)は
      全面を覆う必要があるため拡大の外で描く。 */
   var pcZoomOn = PC_LAYOUT && !reduce;
+  lastPcZoomOn = pcZoomOn; /* 改善2: 同上 */
   if(pcZoomOn){ d.save(); d.translate(gw/2,gh/2); d.scale(PC_ZOOM,PC_ZOOM); d.translate(-gw/2,-gh/2); }
   /* ① 回転する天の川(最奥) */
   if(mwC){ d.save(); d.translate(gw/2,gh/2); d.rotate(reduce?0:time*0.000012); d.globalCompositeOperation="lighter"; d.globalAlpha=0.85; d.drawImage(mwC,-mwC.width/2,-mwC.height/2); d.globalAlpha=1; d.restore(); }
@@ -419,6 +427,7 @@ function drawDeep(time){
      15° = 0.261799rad、2分 = 120000ms → 0.261799/120000 ≈ 0.00000218 rad/ms。
      (従来は0.0000045 ≈ 31°/2分で、要望の約2倍速だった) */
   var skyRot = reduce?0:time*0.00000218; // 15°/2分。天の川(0.000012)より遅い独立層
+  lastSkyRot = skyRot; /* 改善2: タップ判定の逆変換用に記録 */
   d.save();
   d.translate(gw/2,gh/2);
   d.rotate(skyRot);
@@ -460,7 +469,22 @@ function drop(px,py,amp){
   for(yy=-rad;yy<=rad;yy++)for(xx=-rad;xx<=rad;xx++){ var nx=gx+xx,ny=gy+yy; if(nx<1||ny<1||nx>=gw-1||ny>=gh-1)continue; var dd=Math.sqrt(xx*xx+yy*yy); if(dd>rad)continue; cur[ny*gw+nx]+=Math.round(amp*(1-dd/rad)); }
 }
 function crest(x,y,num,col){ for(var i=0;i<num;i++){ if(sparks.length>=MAX_SPARKS)sparks.shift(); var a=Math.random()*6.283,sp=rand(0.4,1.6)*dpr; sparks.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:rand(0.014,0.03),size:rand(0.5,1.4)*dpr,col:col}); } }
-function nearestConstellation(px,py){ var gx=px/W*gw,gy=py/H*gh,best=1e9,bi=-1,i; for(i=0;i<constels.length;i++){ var c=constels[i],dx=c.fx*gw-gx,dy=c.fy*gh-gy,d=dx*dx+dy*dy; if(d<best){best=d;bi=i;} } return bi>=0?constels[bi]:null; }
+function nearestConstellation(px,py){
+  /* 改善2: 星座の描画は「中心基準でskyRot回転 + PC時はPC_ZOOM拡大」されて
+     いるのに、従来の判定は無回転・等倍の座標のままだったため、時間経過で
+     表示と判定がズレていた。タップ座標に逆変換(逆拡大→逆回転)を掛けて
+     描画と同じ座標系で比較するように修正。reduce時は回転・拡大ともに
+     無効なので自然に恒等変換になる。 */
+  var gx=px/W*gw, gy=py/H*gh, cx=gw/2, cy=gh/2;
+  if(lastPcZoomOn){ gx=cx+(gx-cx)/PC_ZOOM; gy=cy+(gy-cy)/PC_ZOOM; }
+  if(lastSkyRot){
+    var ca=Math.cos(-lastSkyRot), sa=Math.sin(-lastSkyRot), dx0=gx-cx, dy0=gy-cy;
+    gx=cx+dx0*ca-dy0*sa; gy=cy+dx0*sa+dy0*ca;
+  }
+  var best=1e9,bi=-1,i;
+  for(i=0;i<constels.length;i++){ var c=constels[i],dx=c.fx*gw-gx,dy=c.fy*gh-gy,d=dx*dx+dy*dy; if(d<best){best=d;bi=i;} }
+  return bi>=0?constels[bi]:null;
+}
 function touchAt(x,y,big,isAuto){
   /* レンダリング中は、流れ星の着水・画面タップ・オートタップの
      いずれの経路から呼ばれても、波紋・星座名表示・音を一切発生させない。
@@ -469,14 +493,6 @@ function touchAt(x,y,big,isAuto){
   if(bgRendering) return;
   drop(x,y, big?WATER.dropBig:WATER.dropTap); crest(x,y, big?14:6, curAccent); count++; updateCount();
   var c=nearestConstellation(x,y); if(c)showCons(c);
-  /* バックグラウンド再生中は、SEIKAI側の効果音(playMelody/playTouch、
-     いずれもAC=audioCtxを使う)を鳴らさない。BG再生開始から数秒以内に
-     画面を触るとBGMが消える不具合の原因を調査した結果、taps/melody
-     がAC(suspend中のはずのcontext)に対してノード生成・start()を
-     呼び続けており、ブラウザ側の内部状態と噛み合わず不安定になって
-     いた可能性が高いと判断した。BG再生中は既にBGが音楽を担っている
-     ので、SEIKAI側の効果音を鳴らさなくても不自然ではない
-     (波紋・きらめき・星座名などの視覚的な反応は今まで通り機能する)。 */
   /* 修正: かつてここにあった「BG再生中は効果音を鳴らさない」ガードを撤去。
      当時「タップでBGMが消える」原因をAC(suspend中のcontext)への操作と
      推定して封じたが、後の調査で真因は消滅後も残留していた透明な再生
@@ -743,6 +759,14 @@ function unlockAudio(){
      連打時には数百個規模のWebAudioノードが<audio>再生と同時に量産されていた
      (診断版でunlock fires:648を観測)。解錠は本来「鳴っていないcontextを
      起こす」ための儀式なので、runningなら何もしないように変更。 */
+  /* 改善1: 自己回復タップ。電話着信・Siri・通知などでiOSがBG再生を
+     中断した場合や、未知の経路で<audio>が止められた場合でも、
+     ここはユーザージェスチャ内なのでplay()が許可される。
+     → タップ1回でBGMが自動蘇生する保険。
+     必ず下の早期 return より前に置くこと(毎タップ評価させる)。 */
+  if(bgActive && bgAudioEl && bgAudioEl.paused && !document.hidden){
+    try{ var rp=bgAudioEl.play(); if(rp&&rp.catch)rp.catch(function(){}); }catch(e){}
+  }
   if(AC.state==="running") return;
   try{ var b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
   /* 修正(改訂): 当初は「連打でBGM消失」対策としてbgActive中のresumeを
@@ -2003,7 +2027,6 @@ function attachBgWatchdog(el) {
       if (now - bgRetryWindowStart > 10000) { bgRetryWindowStart = now; bgRetryCount = 0; }
       if (bgRetryCount >= 3) return;
       bgRetryCount++;
-      window.__dbgWd=(window.__dbgWd||0)+1; /* DEBUG: 自己修復回数 */
       try { var p = el.play(); if (p && p.catch) p.catch(function() {}); } catch (e) {}
     }, 120);
   }, false);
@@ -2065,11 +2088,14 @@ function startGaplessLoop(srcUrl, vol) {
     function scheduleHandoff() {
       if (bgLoopTimer) { clearTimeout(bgLoopTimer); bgLoopTimer = null; }
       var playingEl = bgEls[bgCur];
-      // Poll until we know duration, then arm a timer to fire ~0.28s before end
+      // 改善4: 重なり幅を0.28s→0.12sに短縮。iOSでは<audio>のvolumeが
+      // 実質読み取り専用でクロスフェードが効かず、重なり区間が
+      // そのまま二重再生になるため、短いほど目立たない。
+      // Poll until we know duration, then arm a timer to fire ~0.12s before end
       function arm() {
         var dur = playingEl.duration;
         if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
-        var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
+        var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.12) * 1000);
         bgLoopTimer = setTimeout(function() {
           /* 修正: バックグラウンド(hidden)中は切替そのものを行わない。
              裏ではタイマーが間引かれつつも発火するため、ここで切替を
@@ -2093,7 +2119,7 @@ function startGaplessLoop(srcUrl, vol) {
              無条件に旧要素を pause していたため、play拒否時に無音化した。
              失敗時は旧要素を生かしたまま(ネイティブループ継続)張り直す。 */
           function doCrossfade() {
-            var steps = 8, i = 0;
+            var steps = 6, i = 0; /* 改善4: 6回×20ms=120ms。短縮した重なり幅(0.12s)に収める */
             var xf = setInterval(function() {
               i++;
               var t = i / steps;
@@ -2105,7 +2131,7 @@ function startGaplessLoop(srcUrl, vol) {
                 clearInterval(xf);
                 try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
               }
-            }, 32);
+            }, 20);
             bgCur = nextIdx;
             bgAudioEl = nextEl;
             scheduleHandoff();
