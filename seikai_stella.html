@@ -1934,7 +1934,15 @@ function startGaplessLoop(srcUrl, vol) {
       document.body.appendChild(bgAudioEl);
     }
     bgEls[0] = bgAudioEl;
-    bgEls[0].loop = false;
+    /* 修正: 「放置数時間でBG再生が止まる」対策。
+       iOSはバックグラウンドタブのsetTimeoutを大幅に間引く/凍結するため、
+       JSの切替タイマーだけに依存すると、遅延した瞬間にloop=falseの
+       トラックが自然終了して沈黙する(ループ境界のたびに確率で死ぬ)。
+       loop=trueにしておけば、タイマーが死んでいてもネイティブループが
+       途切れず再生を継続する。前面時のギャップレス切替(クロスフェード)は
+       従来通り動き、切替が間に合えば旧要素は終端前にpauseされるので
+       ネイティブループは発動しない=挙動は変わらない。 */
+    bgEls[0].loop = true;
     bgEls[0].volume = vol;
     bgEls[0].src = srcUrl;
     try { bgEls[0].load(); } catch (e) {}
@@ -1954,7 +1962,7 @@ function startGaplessLoop(srcUrl, vol) {
         bgEls[1] = a;
       }
       setTimeout(function() {
-        bgEls[1].loop = false;
+        bgEls[1].loop = true; /* 修正: el0と同じくネイティブループで生存保証 */
         bgEls[1].volume = vol;
         bgEls[1].src = srcUrl;
         try { bgEls[1].load(); } catch (e) {}
@@ -1972,6 +1980,12 @@ function startGaplessLoop(srcUrl, vol) {
         if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
         var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
         bgLoopTimer = setTimeout(function() {
+          /* 修正: バックグラウンドでタイマーが遅延発火した場合、その間に
+             ネイティブループが先頭へ巻き戻していることがある。その状態で
+             切替すると曲の途中で継ぎ目が入るため、終端付近(残り1.5秒未満)
+             でなければ切替せずタイマーを張り直す。 */
+          var durNow = playingEl.duration;
+          if (isFinite(durNow) && (durNow - playingEl.currentTime) > 1.5) { scheduleHandoff(); return; }
           var nextIdx = 1 - bgCur;
           var nextEl = bgEls[nextIdx];
           if (!nextEl) { scheduleHandoff(); return; } // second not ready yet
