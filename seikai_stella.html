@@ -99,6 +99,15 @@
     color:#01020a; background:#aecdff; padding:8px 16px; border-radius:2px; opacity:0; pointer-events:none; transition:all .4s ease; z-index:6; }
   .toast.show{opacity:1;transform:translate(-50%,0);}
   @media (max-width:480px){ .hero .legend{font-size:12px;} .hud{padding:16px 16px;} }
+  /* 追加: PC(16:9系ワイド)レイアウト。JS側のupdatePcLayout()と同じ
+     しきい値(横900px以上・アスペクト比4/3以上)。
+     VOLバーのUIを上端から下ろし、惑星9ボタン(moodpanel、bottom:14px・
+     高さ約150px)のすぐ上に重ねる。機能・中身は一切変更なし。 */
+  @media (min-width:900px) and (min-aspect-ratio:4/3){
+    .hud{ top:auto; bottom:178px; padding:0 22px; }
+    .hud .volwrap{ width:min(40vw,420px); }
+    .moodpanel{ width:min(40vw,380px); }
+  }
 </style>
 </head>
 <body>
@@ -270,7 +279,17 @@ function buildConstellations(){
   }
 }
 
+/* 追加: PC(16:9系ワイド画面)向けレイアウト判定。
+   横幅900px以上かつアスペクト比4:3以上を「PC表示」とみなし、
+   背景(星空・天の川・月・星雲)をPC_ZOOM倍に拡大描画する。
+   水面やタップ判定には一切影響しない(drawDeep内の描画のみ)。
+   CSS側の @media と同じしきい値を使うこと。 */
+var PC_LAYOUT=false, PC_ZOOM=1.4;
+function updatePcLayout(){
+  PC_LAYOUT = window.innerWidth>=900 && (window.innerWidth/window.innerHeight)>=4/3;
+}
 function resize(){
+  updatePcLayout();
   W=Math.round(window.innerWidth*dpr); H=Math.round(window.innerHeight*dpr);
   cv.width=W; cv.height=H; cv.style.width=window.innerWidth+"px"; cv.style.height=window.innerHeight+"px";
   ctx.imageSmoothingEnabled=true;
@@ -378,6 +397,13 @@ function drawNightSky(){
 function drawDeep(time){
   var d=deepX; d.setTransform(1,0,0,1,0,0); d.globalCompositeOperation="source-over";
   d.fillStyle=rgba(curDeep,1); d.fillRect(0,0,gw,gh);
+  /* 追加: PC表示時は背景層(天の川・星雲・月・星・星座・幾何学)を
+     画面中心基準でPC_ZOOM倍に拡大して描く。大画面で星々が小粒に
+     見えるのを防ぐ。注: 中の各層はsave/restoreで閉じているので
+     この外側の拡大は維持される。drawNightSky(最前面のグラデーション)は
+     全面を覆う必要があるため拡大の外で描く。 */
+  var pcZoomOn = PC_LAYOUT && !reduce;
+  if(pcZoomOn){ d.save(); d.translate(gw/2,gh/2); d.scale(PC_ZOOM,PC_ZOOM); d.translate(-gw/2,-gh/2); }
   /* ① 回転する天の川(最奥) */
   if(mwC){ d.save(); d.translate(gw/2,gh/2); d.rotate(reduce?0:time*0.000012); d.globalCompositeOperation="lighter"; d.globalAlpha=0.85; d.drawImage(mwC,-mwC.width/2,-mwC.height/2); d.globalAlpha=1; d.restore(); }
   /* ② 沈んだ宇宙 */
@@ -402,6 +428,7 @@ function drawDeep(time){
   drawConstellations(time);
   for(i=0;i<shapes.length;i++) drawShape(shapes[i]);
   d.restore();
+  if(pcZoomOn){ d.restore(); } /* 追加: PC拡大をここで閉じる */
   /* ③ 夜空のグラデーション(最前) */
   drawNightSky();
   d.globalCompositeOperation="source-over";
