@@ -489,6 +489,12 @@ function touchAt(x,y,big,isAuto){
 
 /* --- 流れ星（落ちて着水し、波紋と音を生む） --- */
 function spawnSkyMeteor(opt){
+  /* 修正: バックグラウンド(hidden)中は流れ星を一切生成しない。
+     生成タイマーは裏でも発火し続ける一方、移動・着水はrAF(裏では凍結)
+     依存のため、裏に回っている間スポーン分だけが配列に溜まり続け、
+     復帰した瞬間に溜まった流れ星が一斉に降る現象が起きていた
+     (ユーザーの観察により発見)。流星群のstagger分もここで一括で防ぐ。 */
+  if(document.hidden) return;
   /* 訂正: 最初の数秒(イントロ)は流れ星・流星群も一切発生させない。
      再生前(appStartTime未設定)、または再生からINTRO_GRACE_MS以内は抑制。 */
   if(appStartTime===0 || (Date.now()-appStartTime)<INTRO_GRACE_MS) return;
@@ -2024,6 +2030,13 @@ function startGaplessLoop(srcUrl, vol) {
         if (!isFinite(dur) || dur <= 0) { bgLoopTimer = setTimeout(arm, 200); return; }
         var remainingMs = Math.max(60, (dur - playingEl.currentTime - 0.28) * 1000);
         bgLoopTimer = setTimeout(function() {
+          /* 修正: バックグラウンド(hidden)中は切替そのものを行わない。
+             裏ではタイマーが間引かれつつも発火するため、ここで切替を
+             実行すると nextEl.play() がジェスチャ外として拒否され、
+             にもかかわらず旧要素を pause() してしまい BGM が死んでいた
+             (「放置でBGM停止」の真因)。裏の継ぎ目は loop=true の
+             ネイティブループに任せ、前面復帰後の境界から切替を再開する。 */
+          if (document.hidden) { scheduleHandoff(); return; }
           /* 修正: バックグラウンドでタイマーが遅延発火した場合、その間に
              ネイティブループが先頭へ巻き戻していることがある。その状態で
              切替すると曲の途中で継ぎ目が入るため、終端付近(残り1.5秒未満)
@@ -2034,29 +2047,40 @@ function startGaplessLoop(srcUrl, vol) {
           var nextEl = bgEls[nextIdx];
           if (!nextEl) { scheduleHandoff(); return; } // second not ready yet
           var baseVol = playingEl.volume;
+          /* 修正: 切替の完了(クロスフェード+旧要素pause)は nextEl.play() の
+             成功が確認できた場合のみ行う。従来は play() の失敗を握りつぶして
+             無条件に旧要素を pause していたため、play拒否時に無音化した。
+             失敗時は旧要素を生かしたまま(ネイティブループ継続)張り直す。 */
+          function doCrossfade() {
+            var steps = 8, i = 0;
+            var xf = setInterval(function() {
+              i++;
+              var t = i / steps;
+              try {
+                nextEl.volume = Math.min(1, baseVol * t);
+                playingEl.volume = Math.max(0, baseVol * (1 - t));
+              } catch (e) {}
+              if (i >= steps) {
+                clearInterval(xf);
+                try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
+              }
+            }, 32);
+            bgCur = nextIdx;
+            bgAudioEl = nextEl;
+            scheduleHandoff();
+          }
+          function onPlayFail() {
+            try { nextEl.volume = baseVol; } catch (e) {}
+            scheduleHandoff();
+          }
+          var pp;
           try {
             nextEl.currentTime = 0;
             nextEl.volume = 0; // fade in to avoid a doubled seam
-            var pp = nextEl.play();
-            if (pp && pp.catch) pp.catch(function() {});
-          } catch (e) {}
-          // Short crossfade over the ~0.28s overlap
-          var steps = 8, i = 0;
-          var xf = setInterval(function() {
-            i++;
-            var t = i / steps;
-            try {
-              nextEl.volume = Math.min(1, baseVol * t);
-              playingEl.volume = Math.max(0, baseVol * (1 - t));
-            } catch (e) {}
-            if (i >= steps) {
-              clearInterval(xf);
-              try { playingEl.pause(); playingEl.volume = baseVol; } catch (e) {}
-            }
-          }, 32);
-          bgCur = nextIdx;
-          bgAudioEl = nextEl;
-          scheduleHandoff();
+            pp = nextEl.play();
+          } catch (e) { onPlayFail(); return; }
+          if (pp && pp.then) { pp.then(doCrossfade, onPlayFail); }
+          else { doCrossfade(); }
         }, remainingMs);
       }
       arm();
